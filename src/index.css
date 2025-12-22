@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* WorkChoque Design System - Baseado na paleta azul escuro/branco/amarelo */
+
+@layer base {
+  :root {
+    /* Core WorkChoque Colors */
+    --workchoque-blue: 221 83% 20%;
+    --workchoque-blue-light: 221 83% 35%;
+    --workchoque-yellow: 43 96% 56%;
+    --workchoque-yellow-light: 43 96% 70%;
+
+    /* Light Mode */
+    --background: 0 0% 100%;
+    --foreground: 221 83% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 221 83% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 83% 20%;
+
+    --primary: 221 83% 20%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 221 83% 95%;
+    --secondary-foreground: 221 83% 20%;
+
+    --muted: 221 83% 95%;
+    --muted-foreground: 221 39% 46%;
+
+    --accent: 43 96% 56%;
+    --accent-foreground: 221 83% 20%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 221 83% 85%;
+    --input: 221 83% 85%;
+    --ring: 43 96% 56%;
+
+    --radius: 0.75rem;
+
+    /* WorkChoque Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--workchoque-blue)), hsl(var(--workchoque-blue-light)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--workchoque-yellow)), hsl(var(--workchoque-yellow-light)));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--workchoque-blue)) 0%, hsl(var(--workchoque-blue-light)) 50%, hsl(var(--workchoque-yellow)) 100%);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    /* Shadows */
+    --shadow-workchoque: 0 10px 30px -5px hsl(var(--workchoque-blue) / 0.3);
+    --shadow-glow: 0 0 30px hsl(var(--workchoque-yellow) / 0.5);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark Mode - WorkChoque */
+    --background: 221 83% 8%;
+    --foreground: 0 0% 100%;
+
+    --card: 221 83% 12%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 221 83% 12%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 43 96% 56%;
+    --primary-foreground: 221 83% 20%;
+
+    --secondary: 221 83% 15%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 221 83% 15%;
+    --muted-foreground: 221 39% 70%;
+
+    --accent: 43 96% 56%;
+    --accent-foreground: 221 83% 20%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 221 83% 25%;
+    --input: 221 83% 25%;
+    --ring: 43 96% 56%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* WorkChoque Custom Components */
+  .workchoque-gradient {
+    background: var(--gradient-primary);
+  }
+  
+  .workchoque-gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .workchoque-shadow {
+    box-shadow: var(--shadow-workchoque);
+  }
+  
+  .workchoque-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .workchoque-transition {
+    transition: var(--transition-smooth);
+  }
+  
+  .workchoque-bounce {
+    transition: var(--transition-bounce);
+  }
+
+  /* Achievement Badge Styles */
+  .achievement-badge {
+    @apply relative overflow-hidden rounded-lg bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30;
+    @apply hover:from-accent/30 hover:to-accent/10 hover:border-accent/50;
+    @apply transform hover:scale-105 workchoque-transition;
+  }
+
+  .achievement-badge.unlocked {
+    @apply workchoque-glow;
+  }
+
+  /* Modal Animations */
+  .modal-enter {
+    @apply opacity-0 scale-95;
+  }
+  
+  .modal-enter-active {
+    @apply opacity-100 scale-100 workchoque-bounce;
+  }
+  
+  .modal-exit {
+    @apply opacity-100 scale-100;
+  }
+  
+  .modal-exit-active {
+    @apply opacity-0 scale-95 workchoque-transition;
+  }
+}
