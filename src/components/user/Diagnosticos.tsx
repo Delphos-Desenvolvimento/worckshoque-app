@@ -161,7 +161,7 @@ const Diagnosticos = () => {
   }, [diagnostics, filterCategory, filterStatus, searchTerm, sortBy, sortOrder]);
 
   // Handlers
-  const handleViewDiagnostic = (diagnostic: Diagnostic) => {
+  const handleViewDiagnostic = (diagnostic: DiagnosticData) => {
     setSelectedDiagnostic(diagnostic);
     setCurrentView('detail');
   };
@@ -478,6 +478,59 @@ const DiagnosticDetailView = ({ diagnostic }: { diagnostic: DiagnosticData }) =>
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const parseAIAnalysis = (content: any): string => {
+    if (!content) return '';
+    
+    // Se já for objeto
+    if (typeof content === 'object') {
+       if (content.analysis_summary) return content.analysis_summary;
+       if (Array.isArray(content.insights)) return content.insights.join('\n\n');
+       return ''; 
+    }
+    
+    if (typeof content !== 'string') return String(content);
+
+    let cleanContent = content.trim();
+
+    // 1. Tentar extrair JSON de qualquer lugar da string (busca por { ... })
+    const firstBrace = cleanContent.indexOf('{');
+    const lastBrace = cleanContent.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const potentialJson = cleanContent.substring(firstBrace, lastBrace + 1);
+      try {
+        const parsed = JSON.parse(potentialJson);
+        if (typeof parsed === 'object' && parsed !== null) {
+          if (parsed.analysis_summary) return parsed.analysis_summary;
+          if (Array.isArray(parsed.insights)) return parsed.insights.join('\n\n');
+        }
+      } catch (e) {
+        // Falha no parse do JSON extraído, continua para outras estratégias
+      }
+    }
+
+    // 2. Tentar remover blocos de código markdown explicitamente
+    cleanContent = cleanContent.replace(/```json/g, '').replace(/```/g, '');
+    
+    // 3. Tentar parsear o conteúdo limpo
+    try {
+      const parsed = JSON.parse(cleanContent);
+      if (typeof parsed === 'object' && parsed !== null) {
+        if (parsed.analysis_summary) return parsed.analysis_summary;
+        if (Array.isArray(parsed.insights)) return parsed.insights.join('\n\n');
+      }
+    } catch (e) {
+      // Não é JSON
+    }
+
+    // 4. Se tudo falhar, mas parecer que ainda tem artefatos de JSON/Markdown, limpar visualmente
+    if (cleanContent.startsWith('"json')) {
+      cleanContent = cleanContent.substring(5).trim();
+    }
+    
+    return cleanContent;
   };
 
   return (
@@ -871,7 +924,7 @@ const DiagnosticDetailView = ({ diagnostic }: { diagnostic: DiagnosticData }) =>
                     </h4>
                     <div className="prose prose-sm max-w-none">
                       <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-                        {diagnostic.analysis_data.ai_analysis.split('\n').slice(0, 3).join('\n')}
+                        {parseAIAnalysis(diagnostic.analysis_data.ai_analysis).split('\n').slice(0, 3).join('\n')}
                       </div>
                     </div>
                   </div>
@@ -885,7 +938,7 @@ const DiagnosticDetailView = ({ diagnostic }: { diagnostic: DiagnosticData }) =>
                     <div className="bg-muted/30 rounded-lg p-6 border hover:bg-muted/50 transition-colors">
                       <div className="prose prose-sm max-w-none">
                         <div className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                          {diagnostic.analysis_data.ai_analysis}
+                          {parseAIAnalysis(diagnostic.analysis_data.ai_analysis)}
                         </div>
                       </div>
                     </div>

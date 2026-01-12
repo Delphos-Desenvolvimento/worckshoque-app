@@ -31,6 +31,7 @@ interface QuestionnaireListProps {
   onViewDetails: (questionnaire: Questionnaire) => void;
   onEdit: (questionnaire: Questionnaire) => void;
   onDelete: (questionnaire: Questionnaire) => void;
+  onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -68,6 +69,7 @@ export default function QuestionnaireList({
   onViewDetails, 
   onEdit, 
   onDelete, 
+  onToggleActive,
   canEdit, 
   canDelete 
 }: QuestionnaireListProps) {
@@ -94,7 +96,9 @@ export default function QuestionnaireList({
                     </Badge>
                     <Badge 
                       variant={questionnaire.is_active ? "default" : "secondary"}
-                      className={`text-xs ${questionnaire.is_active ? "bg-green-500" : "bg-gray-500"}`}
+                      className={`text-xs cursor-pointer ${questionnaire.is_active ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 hover:bg-gray-600"}`}
+                      onClick={() => canEdit && onToggleActive(questionnaire)}
+                      title={canEdit ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
                     >
                       {questionnaire.is_active ? "Ativo" : "Inativo"}
                     </Badge>

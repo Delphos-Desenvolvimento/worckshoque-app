@@ -66,7 +66,7 @@ const questions = [
   }
 ];
 
-const Diagnostico = () => {
+const Diagnostico = ({ mode = 'page', onComplete }: { mode?: 'page' | 'modal'; onComplete?: () => void }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [showResult, setShowResult] = useState(false);
@@ -116,11 +116,11 @@ const Diagnostico = () => {
     const scoreInfo = getScoreCategory(score);
 
     return (
-      <div className="min-h-screen bg-background">
+      <div className={mode === 'page' ? "min-h-screen bg-background" : "bg-background"}>
         {/* Header removed - using DashboardLayout */}
         
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <Card className="workchoque-shadow">
+        <div className={mode === 'page' ? "container mx-auto px-4 py-8 max-w-4xl" : "space-y-4"}>
+          <Card className={mode === 'page' ? "workchoque-shadow" : "border-0 shadow-none"}>
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center">
                 <CheckCircle className="h-8 w-8 text-accent" />
@@ -179,10 +179,14 @@ const Diagnostico = () => {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" className="flex-1">
-                  Cadastrar para Ver Relatório Completo
+                <Button size="lg" className="flex-1" onClick={onComplete}>
+                  {mode === 'modal' ? 'Concluir' : 'Cadastrar para Ver Relatório Completo'}
                 </Button>
-                <Button variant="outline" size="lg" className="flex-1">
+                <Button variant="outline" size="lg" className="flex-1" onClick={() => {
+                  setShowResult(false);
+                  setCurrentQuestion(0);
+                  setAnswers({});
+                }}>
                   Fazer Outro Diagnóstico
                 </Button>
               </div>
@@ -204,22 +208,24 @@ const Diagnostico = () => {
           </Card>
         </div>
 
-        <Modal
-          isOpen={showModal}
-          onClose={() => setShowModal(false)}
-          type="success"
-          title="Parabéns! Diagnóstico Concluído"
-          message="Você completou com sucesso o diagnóstico do ambiente de trabalho. Cadastre-se para acessar o relatório completo e planos de ação personalizados!"
-        />
+        {mode === 'page' && (
+          <Modal
+            isOpen={showModal}
+            onClose={() => setShowModal(false)}
+            type="success"
+            title="Parabéns! Diagnóstico Concluído"
+            message="Você completou com sucesso o diagnóstico do ambiente de trabalho. Cadastre-se para acessar o relatório completo e planos de ação personalizados!"
+          />
+        )}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={mode === 'page' ? "min-h-screen bg-background" : "bg-background h-full"}>
       {/* Header removed - using DashboardLayout */}
       
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className={mode === 'page' ? "container mx-auto px-4 py-8 max-w-4xl" : "h-full flex flex-col"}>
         {/* Progress Header */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
@@ -232,7 +238,7 @@ const Diagnostico = () => {
         </div>
 
         {/* Question Card */}
-        <Card className="workchoque-shadow">
+        <Card className={mode === 'page' ? "workchoque-shadow" : "border-0 shadow-none flex-1"}>
           <CardHeader>
             <CardTitle className="text-xl">
               {questions[currentQuestion].question}

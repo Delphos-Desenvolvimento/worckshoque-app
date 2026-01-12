@@ -538,6 +538,30 @@ const DiagnosticoModal = ({ isOpen, onClose }: DiagnosticoModalProps) => {
                     }
                     
                     const questionType = currentQ?.type?.toLowerCase() || '';
+                    console.log('DEBUG DIAGNOSTICO:', {
+                      id: currentQ.id,
+                      question: currentQ.question,
+                      type: questionType,
+                      rawType: currentQ.type,
+                      optionsCount: currentQ.options?.length,
+                      options: currentQ.options
+                    });
+                    
+                    // Preparar opções
+                    let questionOptions = currentQ?.options || [];
+                    
+                    // FORÇA BRUTA: Se o tipo for 'scale' ou 'escala', IGNORA as opções do banco e gera 0-10 sempre.
+                    // Isso garante que a escala sempre apareça, mesmo que o banco tenha lixo ou array vazio.
+                    if (questionType === 'scale' || questionType === 'escala') {
+                      questionOptions = Array.from({ length: 11 }, (_, i) => ({
+                        id: `scale-${i}`,
+                        value: String(i),
+                        label: String(i),
+                        score: i,
+                        order: i,
+                        question_id: currentQ.id
+                      }));
+                    }
                     
                     // Se for pergunta de texto livre - renderizar Textarea
                     if (questionType === 'text') {
@@ -552,21 +576,16 @@ const DiagnosticoModal = ({ isOpen, onClose }: DiagnosticoModalProps) => {
                       );
                     }
                     
-                    // Para outros tipos, verificar opções
-                    const questionOptions = getQuestionOptions(currentQ);
+                    const hasOptions = questionOptions && questionOptions.length > 0;
                     
-                    // Se não tem opções e não é do tipo text, mostrar mensagem de erro
-                    if (questionOptions.length === 0) {
+                    if (!hasOptions && questionType !== 'text') {
                       return (
-                        <div className="p-4 border rounded-lg bg-yellow-50">
-                          <p className="text-sm text-yellow-800 mb-2">
-                            <strong>Aviso:</strong> Esta pergunta não possui opções configuradas.
-                          </p>
-                          <p className="text-xs text-yellow-600">
-                            Tipo: {questionType || 'não definido'} | 
-                            Opções na API: {currentQ?.options?.length || 0}
-                          </p>
-                          <p className="text-xs text-yellow-600 mt-2">
+                        <div className="p-4 border rounded-lg bg-amber-50">
+                          <p className="text-sm text-amber-700">
+                            Esta pergunta não possui opções configuradas.
+                            <br />
+                            Tipo detectado: {questionType}
+                            <br />
                             Para perguntas de múltipla escolha, é necessário adicionar opções ao criar/editar o questionário.
                           </p>
                         </div>
@@ -579,7 +598,7 @@ const DiagnosticoModal = ({ isOpen, onClose }: DiagnosticoModalProps) => {
                         value={answers[currentQ?.id] || ''} 
                         onValueChange={handleAnswerChange}
                       >
-                        {questionType === 'scale' ? (
+                        {questionType === 'scale' || questionType === 'escala' ? (
                           // Layout especial para perguntas de escala
                           <div className="space-y-3">
                             <div className="flex justify-between text-xs text-muted-foreground mb-2">

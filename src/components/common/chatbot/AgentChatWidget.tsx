@@ -4,6 +4,7 @@ import { getAgentContext, sendAgentMessage } from './agent-api';
 import { MessageSquare, X, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ChatMessage, AgentResponsePayload } from './useAgentChatStore';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function AgentChatWidget() {
   const { open, openChat, closeChat, messages, addUserMessage, addAgentResponse } = useAgentChatStore();
@@ -11,6 +12,7 @@ export default function AgentChatWidget() {
   const [context, setContext] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const token = useAuthStore((s) => s.token);
 
   useEffect(() => {
     if (open && !context) {
@@ -23,8 +25,31 @@ export default function AgentChatWidget() {
     addUserMessage(input);
     setLoading(true);
     try {
-      const resp = await sendAgentMessage(input);
-      addAgentResponse(resp);
+      if (!token) {
+        addAgentResponse({
+          direct_answer: 'Sua sessão não está autenticada. Faça login novamente.',
+          simple_explanation: 'Não foi possível validar suas credenciais para enviar a mensagem.',
+          recommended_actions: [
+            { label: 'Ir para Login', route: '/login' },
+          ],
+          motivation: 'Após autenticar, retome a conversa com o agente.',
+          follow_up_question: 'Deseja ir para a página de login?',
+        });
+      } else {
+        const resp = await sendAgentMessage(input);
+        addAgentResponse(resp);
+      }
+    } catch (e) {
+      addAgentResponse({
+        direct_answer: 'Falha ao enviar mensagem ao agente.',
+        simple_explanation: 'Verifique sua conexão e tente novamente.',
+        recommended_actions: [
+          { label: 'Abrir Plano de Ação', route: '/planos-acao' },
+          { label: 'Ver Conteúdos', route: '/conteudos' },
+        ],
+        motivation: 'Pequenos passos constantes geram resultado.',
+        follow_up_question: 'Deseja focar em metas ou em conteúdos agora?',
+      });
     } finally {
       setLoading(false);
       setInput('');

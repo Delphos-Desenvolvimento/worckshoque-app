@@ -74,7 +74,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PageHeader from '@/components/common/PageHeader';
 import Pagination from '@/components/common/Pagination';
-import { api } from '@/lib/api';
+import { api, SessionExpiredError } from '@/lib/api';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Notification {
   id: string;
@@ -89,6 +90,7 @@ interface Notification {
   read_at: string | null;
   user_id: string | null;
   role: string | null;
+  expires_at?: string | null;
 }
 
 interface NotificationTemplate {
@@ -396,6 +398,7 @@ export default function Notificacoes() {
       const data: Notification[] = await response.json();
       setNotifications(data);
     } catch (err) {
+      if (err instanceof SessionExpiredError) return;
       console.error('Erro ao buscar notificações:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido ao carregar notificações');
     } finally {
@@ -643,7 +646,7 @@ export default function Notificacoes() {
             label: "Marcar Todas como Lidas", 
             icon: CheckCheck, 
             onClick: markAllAsRead,
-            variant: 'outline' as const
+            variant: 'secondary' as const
           }] : [])
         ]}
       />

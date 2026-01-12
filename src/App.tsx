@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound";
 
 // User Pages
 import Questionarios from "./components/common/Questionarios";
+import MeusQuestionarios from "./components/user/MeusQuestionarios";
 import Diagnosticos from "./components/user/Diagnosticos";
 import PlanosAcaoV2 from "./components/user/PlanosAcaoV2";
 import DetalhesPlanoAcao from "./components/user/DetalhesPlanoAcao";
@@ -67,6 +68,15 @@ const AppWithAuth = () => {
   
   // Verificar se o token foi perdido durante hot reload e restaurar
   useEffect(() => {
+    // Forçar logout se houver flag de token inválido no sessionStorage
+    if (sessionStorage.getItem('force_logout_v1')) {
+      console.warn('⚠️ [AppWithAuth] Forçando logout limpo para corrigir tokens antigos');
+      useAuthStore.getState().logout();
+      localStorage.removeItem('auth-storage');
+      sessionStorage.removeItem('force_logout_v1');
+      return;
+    }
+
     // Aguardar um pouco para o Zustand persist hidratar
     const checkAndRestore = () => {
       const storedAuth = localStorage.getItem('auth-storage');
@@ -141,6 +151,42 @@ const AppWithAuth = () => {
     return () => clearInterval(interval);
   }, [user, token, refreshUserPermissions]);
   
+  useEffect(() => {
+    const onWindowError = (event: ErrorEvent) => {
+      const payload = {
+        type: 'WindowError',
+        message: event.error?.message ?? event.message ?? 'Unknown',
+        stack: event.error?.stack,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+      };
+      console.error(JSON.stringify(payload));
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      const payload = {
+        type: 'UnhandledRejection',
+        message:
+          typeof reason === 'object' && reason !== null
+            ? (reason as { message?: string }).message ??
+              JSON.stringify(reason as Record<string, unknown>)
+            : String(reason),
+        stack:
+          typeof reason === 'object' && reason !== null
+            ? (reason as { stack?: string }).stack
+            : undefined,
+      };
+      console.error(JSON.stringify(payload));
+    };
+    window.addEventListener('error', onWindowError);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    return () => {
+      window.removeEventListener('error', onWindowError);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+    };
+  }, []);
+  
   return (
     <PermissionsProvider 
       userRole={user?.role || "user"} 
@@ -174,6 +220,7 @@ const AppWithAuth = () => {
               
               {/* User Routes */}
               <Route path="/questionarios" element={<DashboardLayout><Questionarios /></DashboardLayout>} />
+              <Route path="/meus-questionarios" element={<DashboardLayout><MeusQuestionarios /></DashboardLayout>} />
               <Route path="/diagnosticos" element={<DashboardLayout><Diagnosticos /></DashboardLayout>} />
               <Route path="/planos-acao" element={<DashboardLayout><PlanosAcaoV2 /></DashboardLayout>} />
               <Route path="/planos-acao/:id" element={<DashboardLayout><DetalhesPlanoAcao /></DashboardLayout>} />
@@ -232,10 +279,54 @@ const AppWithAuth = () => {
   );
 };
 
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; errorId?: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorId: undefined };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: unknown, errorInfo: unknown) {
+    const errorId = Math.random().toString(16).slice(2);
+    const payload = {
+      type: "ReactErrorBoundary",
+      errorId,
+      message:
+        typeof error === "object" && error !== null
+          ? (error as { message?: string }).message ?? JSON.stringify(error)
+          : String(error),
+      stack:
+        typeof error === "object" && error !== null
+          ? (error as { stack?: string }).stack
+          : undefined,
+      info: errorInfo,
+    };
+    console.error(JSON.stringify(payload));
+    this.setState({ errorId });
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6">
+          <h1 className="text-xl font-semibold">Something went wrong.</h1>
+          <p className="text-sm">Error ID: {this.state.errorId}</p>
+        </div>
+      );
+    }
+    return this.props.children as React.ReactNode;
+  }
+}
+
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AppWithAuth />
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AppWithAuth />
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

@@ -1861,11 +1861,17 @@ export default function PlanosAcaoV2() {
                     <Calendar
                       mode="single"
                       selected={novoPlano.prazo ? parseISO(novoPlano.prazo) : undefined}
-                      onSelect={(date) => {
-                        if (date) {
+                      onSelect={(value) => {
+                        const date =
+                          Array.isArray(value)
+                            ? value[0]
+                            : value && typeof value === 'object' && 'from' in value
+                            ? (value as { from?: Date }).from
+                            : (value as Date | undefined);
+                        if (date instanceof Date) {
                           setNovoPlano({
                             ...novoPlano,
-                            prazo: format(date, 'yyyy-MM-dd')
+                            prazo: format(date, 'yyyy-MM-dd'),
                           });
                         }
                       }}

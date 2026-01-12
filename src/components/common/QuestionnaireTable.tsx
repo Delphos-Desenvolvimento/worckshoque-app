@@ -31,6 +31,7 @@ interface QuestionnaireTableProps {
   onViewDetails: (questionnaire: Questionnaire) => void;
   onEdit: (questionnaire: Questionnaire) => void;
   onDelete: (questionnaire: Questionnaire) => void;
+  onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -67,22 +68,23 @@ export default function QuestionnaireTable({
   onRespond, 
   onViewDetails, 
   onEdit, 
-  onDelete, 
+  onDelete,
+  onToggleActive,
   canEdit, 
   canDelete 
 }: QuestionnaireTableProps) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="w-5 h-5" />
+    <Card className="overflow-hidden border-border bg-card">
+      <CardHeader className="bg-muted/10">
+        <CardTitle className="flex items-center gap-2 text-foreground">
+          <FileText className="w-5 h-5 text-primary" />
           Questionários ({questionnaires.length})
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-muted/50">
+            <thead className="bg-muted/50 border-b border-border">
               <tr>
                 <th className="text-left p-4 font-medium text-sm text-muted-foreground">Questionário</th>
                 <th className="text-left p-4 font-medium text-sm text-muted-foreground">Tipo</th>
@@ -90,15 +92,15 @@ export default function QuestionnaireTable({
                 <th className="text-left p-4 font-medium text-sm text-muted-foreground">Tempo</th>
                 <th className="text-left p-4 font-medium text-sm text-muted-foreground">Status</th>
                 <th className="text-left p-4 font-medium text-sm text-muted-foreground">Criado em</th>
-                <th className="text-left p-4 font-medium text-sm text-muted-foreground">Ações</th>
+                <th className="text-right p-4 font-medium text-sm text-muted-foreground">Ações</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border">
               {questionnaires.map((questionnaire, index) => (
-                <tr key={questionnaire.id} className={`border-b hover:bg-muted/30 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-muted/10'}`}>
+                <tr key={questionnaire.id} className="hover:bg-muted/30 transition-colors bg-card">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${getTypeColor(questionnaire.type)}`}>
+                      <div className={`p-2 rounded-lg bg-muted/50 ${getTypeColor(questionnaire.type).replace('bg-', 'text-')}`}>
                         {getQuestionnaireIcon(questionnaire.type)}
                       </div>
                       <div>
@@ -117,22 +119,34 @@ export default function QuestionnaireTable({
                   <td className="p-4">
                     <div className="flex items-center gap-1">
                       <FileText className="w-4 h-4 text-muted-foreground" />
-                      <span className="font-medium">{questionnaire.questions_count}</span>
+                      <span className="font-medium">
+                        {questionnaire.questions_count !== undefined && questionnaire.questions_count !== null 
+                          ? questionnaire.questions_count 
+                          : '-'}
+                      </span>
                     </div>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-1">
                       <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span className="font-medium">{questionnaire.estimated_time} min</span>
+                      <span className="font-medium">
+                        {questionnaire.estimated_time 
+                          ? `${questionnaire.estimated_time} min` 
+                          : '-'}
+                      </span>
                     </div>
                   </td>
                   <td className="p-4">
-                    <Badge 
-                      variant={questionnaire.is_active ? "default" : "secondary"}
-                      className={questionnaire.is_active ? "bg-green-500" : "bg-gray-500"}
-                    >
-                      {questionnaire.is_active ? "Ativo" : "Inativo"}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge 
+                        variant={questionnaire.is_active ? "default" : "secondary"}
+                        className={`cursor-pointer ${questionnaire.is_active ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 hover:bg-gray-600"}`}
+                        onClick={() => canEdit && onToggleActive(questionnaire)}
+                        title={canEdit ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
+                      >
+                        {questionnaire.is_active ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </div>
                   </td>
                   <td className="p-4">
                     <span className="text-sm text-muted-foreground">
@@ -140,7 +154,7 @@ export default function QuestionnaireTable({
                     </span>
                   </td>
                   <td className="p-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-end gap-2">
                       <Button
                         onClick={() => onRespond(questionnaire)}
                         size="sm"

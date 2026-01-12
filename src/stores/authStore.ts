@@ -73,21 +73,27 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         
         try {
-          // Removendo /api duplicado - já está incluso no API_BASE_URL
-          const loginUrl = `${API_BASE_URL}/auth/login`;
-          console.log('Tentando fazer login em:', loginUrl);
-          console.log('Tentando fazer login em:', loginUrl);
-          
-          const response = await fetch(loginUrl, {
+          const response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
           });
 
           if (!response.ok) {
-            throw new Error('Credenciais inválidas');
+            const ct = response.headers.get('content-type') || '';
+            let errMsg = 'Credenciais inválidas';
+            try {
+              const clone = response.clone();
+              if (ct.includes('application/json')) {
+                const body = await clone.json();
+                if (body && typeof body === 'object' && 'message' in (body as Record<string, unknown>)) {
+                  errMsg = String((body as Record<string, unknown>).message);
+                }
+              } else {
+                errMsg = await clone.text();
+              }
+            } catch (_err) { void _err; }
+            throw new Error(errMsg);
           }
 
           const data = await response.json();
@@ -113,15 +119,25 @@ export const useAuthStore = create<AuthStore>()(
         try {
           const response = await fetch(`${API_BASE_URL}/auth/register`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData),
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Erro no cadastro');
+            const ct = response.headers.get('content-type') || '';
+            let errMsg = 'Erro no cadastro';
+            try {
+              const clone = response.clone();
+              if (ct.includes('application/json')) {
+                const body = await clone.json();
+                if (body && typeof body === 'object' && 'message' in (body as Record<string, unknown>)) {
+                  errMsg = String((body as Record<string, unknown>).message);
+                }
+              } else {
+                errMsg = await clone.text();
+              }
+            } catch (_err) { void _err; }
+            throw new Error(errMsg);
           }
 
           await response.json();

@@ -4,9 +4,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar, FileText, TrendingUp, Eye, BarChart3, Clock } from 'lucide-react';
+import { Calendar, FileText, TrendingUp, Eye, BarChart3, Clock, Users, User, List, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/lib/api';
+import PageHeader from '@/components/common/PageHeader';
 
 interface QuestionnaireResponse {
   id: string;
@@ -18,6 +19,10 @@ interface QuestionnaireResponse {
   question: {
     question: string;
     type: string;
+  };
+  user?: {
+    name: string;
+    email: string;
   };
   response: string;
   score: number | null;
@@ -32,88 +37,40 @@ interface QuestionnaireSummary {
   average_score: number;
   completed_at: string;
   latest_response: string;
+  respondents?: number; // Para admin/master
 }
 
-const mockQuestionnaires: QuestionnaireSummary[] = [
-  {
-    questionnaire_id: '1',
-    title: 'Questionário de Estresse Organizacional',
-    type: 'estresse',
-    responses_count: 25,
-    average_score: 7.2,
-    completed_at: '2024-01-15T10:30:00Z',
-    latest_response: '2024-01-15T10:30:00Z'
-  },
-  {
-    questionnaire_id: '2',
-    title: 'Clima Organizacional - Q1 2024',
-    type: 'clima',
-    responses_count: 30,
-    average_score: 8.5,
-    completed_at: '2024-01-08T14:20:00Z',
-    latest_response: '2024-01-08T14:20:00Z'
-  },
-  {
-    questionnaire_id: '3',
-    title: 'Burnout e Sobrecarga de Trabalho',
-    type: 'burnout',
-    responses_count: 20,
-    average_score: 6.8,
-    completed_at: '2024-01-01T09:15:00Z',
-    latest_response: '2024-01-01T09:15:00Z'
-  }
-];
-
-const mockDetailedResponses: QuestionnaireResponse[] = [
-  {
-    id: '1',
-    questionnaire: {
-      title: 'Questionário de Estresse Organizacional',
-      type: 'estresse'
-    },
-    question: {
-      question: 'Como você avalia seu nível de estresse no trabalho?',
-      type: 'scale'
-    },
-    response: '4',
-    score: 4,
-    completed_at: '2024-01-15T10:30:00Z'
-  },
-  {
-    id: '2',
-    questionnaire: {
-      title: 'Questionário de Estresse Organizacional',
-      type: 'estresse'
-    },
-    question: {
-      question: 'Você se sente sobrecarregado com suas responsabilidades?',
-      type: 'multiple_choice'
-    },
-    response: 'Às vezes',
-    score: null,
-    completed_at: '2024-01-15T10:30:00Z'
-  }
-];
-
 export default function MeusQuestionarios() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const [questionnaires, setQuestionnaires] = useState<QuestionnaireSummary[]>([]);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string | null>(null);
   const [detailedResponses, setDetailedResponses] = useState<QuestionnaireResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
+  // Verificar se é admin ou master
+  const isAdminOrMaster = user?.role === 'admin' || user?.role === 'master';
+  const pageTitle = isAdminOrMaster ? "Respostas dos Questionários" : "Minhas Respostas";
+  const pageDescription = isAdminOrMaster 
+    ? "Visualize e analise as respostas de todos os usuários" 
+    : "Histórico das suas respostas e avaliações";
+
   useEffect(() => {
     loadQuestionnaires();
-  }, []);
+  }, [isAdminOrMaster]); // Recarregar se o papel mudar (embora raro em tempo real)
 
   const loadQuestionnaires = async () => {
     try {
-      const response = await api.get('/questionnaires/my/responses');
+      // Endpoint diferente para admin/master (lista todas as respostas) ou user (apenas as suas)
+      const endpoint = isAdminOrMaster ? '/questionnaires/responses' : '/questionnaires/my/responses';
+      
+      const response = await api.get(endpoint);
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || `Erro ao carregar respostas (${response.status})`);
       }
+      
       const data: QuestionnaireResponse[] = await response.json();
       if (!Array.isArray(data)) {
         throw new Error('Formato de dados inválido recebido do servidor');
@@ -135,7 +92,8 @@ export default function MeusQuestionarios() {
             responses_count: 1,
             average_score: scoreVal ?? 0,
             completed_at: completedAt,
-            latest_response: completedAt
+            latest_response: completedAt,
+            respondents: 1 // Contagem inicial
           });
         } else {
           const newCount = existing.responses_count + 1;
@@ -155,7 +113,8 @@ export default function MeusQuestionarios() {
             responses_count: newCount,
             average_score: Number.isFinite(newAvg) ? Math.round(newAvg * 10) / 10 : existing.average_score,
             latest_response: latest,
-            completed_at: latest
+            completed_at: latest,
+            respondents: (existing.respondents || 0) + 1 // Incremento simplificado
           });
         }
       }
@@ -163,7 +122,7 @@ export default function MeusQuestionarios() {
       setQuestionnaires(Array.from(summariesMap.values()));
     } catch (error) {
       console.error('Erro ao carregar questionários:', error);
-      setQuestionnaires(mockQuestionnaires);
+      setQuestionnaires([]);
     } finally {
       setIsLoading(false);
     }
@@ -171,20 +130,21 @@ export default function MeusQuestionarios() {
 
   const loadDetailedResponses = async (questionnaireId: string) => {
     try {
-      // Usuários não podem acessar /questionnaires/:id/responses (retorna 403).
-      // Buscar as respostas do próprio usuário e filtrar pelo questionnaire_id.
-      const response = await api.get('/questionnaires/my/responses');
+      const endpoint = isAdminOrMaster ? '/questionnaires/responses' : '/questionnaires/my/responses';
+      const response = await api.get(endpoint);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erro ao carregar respostas (${response.status})`);
+        throw new Error(`Erro ao carregar detalhes (${response.status})`);
       }
+      
       const data: QuestionnaireResponse[] = await response.json();
       const filtered = Array.isArray(data)
         ? data.filter(r => r.questionnaire_id === questionnaireId)
         : [];
-      setDetailedResponses(filtered.length > 0 ? filtered : mockDetailedResponses);
+      setDetailedResponses(filtered);
     } catch (error) {
       console.error('Erro ao carregar respostas detalhadas:', error);
+      setDetailedResponses([]);
     }
   };
 
@@ -194,119 +154,118 @@ export default function MeusQuestionarios() {
     setIsDetailsModalOpen(true);
   };
 
+  const formatResponseText = (text: string) => {
+    if (!text) return '-';
+    // Check if it looks like a slug (contains hyphens or underscores and no spaces)
+    if (/^[\w-]+$/.test(text) && !text.includes(' ')) {
+      return text
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+    }
+    return text;
+  };
+
+  const getScoreColor = (score: number | null) => {
+    if (score === null) return 'text-gray-500';
+    if (score < 5) return 'text-red-500 font-bold';
+    if (score < 8) return 'text-yellow-600 font-bold';
+    return 'text-green-600 font-bold';
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'text': return <FileText className="w-3 h-3" />;
+      case 'scale': return <BarChart3 className="w-3 h-3" />;
+      case 'multiple_choice': return <List className="w-3 h-3" />;
+      default: return <FileText className="w-3 h-3" />;
+    }
+  };
+
   const getTypeBadge = (type: string) => {
     const types = {
-      estresse: { label: 'Estresse', color: 'bg-red-100 text-red-800' },
-      clima: { label: 'Clima', color: 'bg-blue-100 text-blue-800' },
-      burnout: { label: 'Burnout', color: 'bg-orange-100 text-orange-800' }
+      estresse: { label: 'Estresse', color: 'bg-red-100 text-red-800 border-red-200' },
+      clima: { label: 'Clima', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+      burnout: { label: 'Burnout', color: 'bg-orange-100 text-orange-800 border-orange-200' },
+      lideranca: { label: 'Liderança', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+      cultura: { label: 'Cultura', color: 'bg-green-100 text-green-800 border-green-200' }
     };
-    const typeInfo = types[type as keyof typeof types] || { label: type, color: 'bg-gray-100 text-gray-800' };
-    return <Badge className={typeInfo.color}>{typeInfo.label}</Badge>;
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 8) return 'text-green-600';
-    if (score >= 6) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  if (isLoading) {
+    
+    const style = types[type as keyof typeof types] || { label: type, color: 'bg-gray-100 text-gray-800 border-gray-200' };
+    
     return (
-      <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-          <div className="grid gap-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <Badge variant="outline" className={`${style.color}`}>
+        {style.label}
+      </Badge>
     );
-  }
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Meus Questionários</h1>
-        <p className="text-muted-foreground">
-          Histórico completo dos questionários que você respondeu
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title={pageTitle}
+        description={pageDescription}
+        icon={FileText}
+        badges={[
+          { label: `${questionnaires.length} questionários respondidos`, icon: FileText },
+          { label: "Última atualização hoje", icon: Clock }
+        ]}
+      />
 
-      {questionnaires.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhum questionário respondido</h3>
-              <p className="text-muted-foreground mb-4">
-                Você ainda não respondeu nenhum questionário.
-              </p>
-              <Button>
-                Responder Questionário
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="h-24 bg-muted" />
+              <CardContent className="h-32" />
+            </Card>
+          ))}
+        </div>
       ) : (
-        <div className="grid gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {questionnaires.map((questionnaire) => (
-            <Card key={questionnaire.questionnaire_id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="w-5 h-5" />
+            <Card key={questionnaire.questionnaire_id} className="hover:shadow-lg transition-shadow duration-200">
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg line-clamp-2" title={questionnaire.title}>
                       {questionnaire.title}
                     </CardTitle>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        {new Date(questionnaire.completed_at).toLocaleDateString('pt-BR')}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <BarChart3 className="w-4 h-4" />
-                        {questionnaire.responses_count} perguntas
-                      </div>
-                      {questionnaire.average_score > 0 && (
-                        <div className="flex items-center gap-1">
-                          <TrendingUp className="w-4 h-4" />
-                          <span className={getScoreColor(questionnaire.average_score)}>
-                            Score: {questionnaire.average_score}/10
-                          </span>
-                        </div>
-                      )}
+                    <div className="flex items-center text-sm text-muted-foreground">
+                      <Calendar className="w-3 h-3 mr-1" />
+                      {new Date(questionnaire.completed_at).toLocaleDateString('pt-BR')}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getTypeBadge(questionnaire.type)}
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleViewDetails(questionnaire.questionnaire_id)}
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      Ver Detalhes
-                    </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Última resposta: {new Date(questionnaire.latest_response).toLocaleString('pt-BR')}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-sm text-muted-foreground">Média Score</span>
+                    <span className="font-bold text-lg">{questionnaire.average_score.toFixed(1)}</span>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm">
-                      <BarChart3 className="w-4 h-4 mr-2" />
-                      Comparar
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      Evolução
-                    </Button>
+                  
+                  {isAdminOrMaster && (
+                     <div className="flex justify-between items-center py-2 border-b">
+                       <span className="text-sm text-muted-foreground">Respondentes</span>
+                       <span className="font-bold text-lg flex items-center">
+                         <Users className="w-4 h-4 mr-1 text-muted-foreground" />
+                         {questionnaire.responses_count}
+                       </span>
+                     </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-2">
+                      {getTypeBadge(questionnaire.type)}
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleViewDetails(questionnaire.questionnaire_id)}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Ver Detalhes
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -321,45 +280,91 @@ export default function MeusQuestionarios() {
           <DialogHeader>
             <DialogTitle>Respostas Detalhadas</DialogTitle>
             <DialogDescription>
-              Visualize suas respostas para este questionário
+              {isAdminOrMaster 
+                ? "Visualizando respostas de todos os usuários para este questionário" 
+                : "Suas respostas para este questionário"}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="rounded-lg border overflow-hidden">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead>Pergunta</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Sua Resposta</TableHead>
-                  <TableHead>Score</TableHead>
+                  <TableHead className="w-[40%] py-3">Pergunta</TableHead>
+                  <TableHead>Resposta</TableHead>
+                  {isAdminOrMaster && <TableHead>Usuário</TableHead>}
+                  <TableHead>Data</TableHead>
+                  <TableHead className="text-right">Score</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {detailedResponses.map((response) => (
-                  <TableRow key={response.id}>
-                    <TableCell className="max-w-md">
-                      <div className="font-medium">{response.question.question}</div>
+                  <TableRow key={response.id} className="hover:bg-muted/30">
+                    <TableCell className="font-medium align-top py-4">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-1 p-1.5 rounded-md bg-muted text-muted-foreground shrink-0">
+                          {getTypeIcon(response.question.type)}
+                        </div>
+                        <div>
+                          <p className="leading-snug text-sm">{response.question.question}</p>
+                          <Badge variant="secondary" className="mt-2 text-[10px] h-5 font-normal px-1.5 text-muted-foreground bg-muted/50 border-border/50">
+                             {response.question.type.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {response.question.type === 'scale' ? 'Escala' : 'Múltipla Escolha'}
-                      </Badge>
+                    <TableCell className="align-top py-4">
+                      <span className="text-sm font-medium text-foreground block max-w-[200px] break-words">
+                        {formatResponseText(response.response)}
+                      </span>
                     </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{response.response}</div>
+                    {isAdminOrMaster && (
+                      <TableCell className="align-top py-4">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-3 shrink-0 text-xs font-bold text-primary border border-primary/20">
+                            {response.user?.name?.charAt(0).toUpperCase() || 'A'}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-medium truncate max-w-[120px]" title={response.user?.name}>{response.user?.name || 'Anônimo'}</span>
+                            <span className="text-xs text-muted-foreground truncate max-w-[120px]" title={response.user?.email}>{response.user?.email}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                    )}
+                    <TableCell className="align-top py-4">
+                      <div className="flex items-center text-muted-foreground text-xs font-medium">
+                        <Clock className="w-3.5 h-3.5 mr-1.5" />
+                        {new Date(response.completed_at).toLocaleDateString('pt-BR')}
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right align-top py-4">
                       {response.score !== null ? (
-                        <span className={getScoreColor(response.score)}>
-                          {response.score}/10
-                        </span>
+                        <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full border shadow-sm ${
+                          response.score >= 8 ? 'bg-green-50 border-green-200 text-green-700' :
+                          response.score >= 5 ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
+                          'bg-red-50 border-red-200 text-red-700'
+                        } font-bold text-sm`}>
+                          {response.score}
+                        </div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xl leading-none opacity-30">-</span>
                       )}
                     </TableCell>
                   </TableRow>
                 ))}
+                {detailedResponses.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={isAdminOrMaster ? 5 : 4} className="text-center py-16">
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <div className="w-16 h-16 bg-muted/30 rounded-full flex items-center justify-center mb-4">
+                          <FileText className="w-8 h-8 opacity-40" />
+                        </div>
+                        <p className="font-medium">Nenhuma resposta encontrada.</p>
+                        <p className="text-xs mt-1 opacity-70">As respostas aparecerão aqui assim que forem enviadas.</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

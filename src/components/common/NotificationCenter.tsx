@@ -22,7 +22,7 @@ import {
   X,
   Loader2
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, SessionExpiredError } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 
 interface Notification {
@@ -53,19 +53,27 @@ export default function NotificationCenter({ className = "" }: NotificationCente
     if (!isAuthenticated || !token) return;
     try {
       setLoading(true);
-      const [notificationsResponse, countResponse] = await Promise.all([
-        api.get('/notifications?limit=20'),
-        api.get('/notifications/unread-count')
+      
+      // Busca paralela com tratamento de erro individual para evitar falha total
+      const fetchList = api.get('/notifications?limit=20');
+      const fetchCount = api.get('/notifications/unread-count');
+      
+      const [notificationsResponse, countResponse] = await Promise.allSettled([
+        fetchList,
+        fetchCount
       ]);
 
-      if (notificationsResponse.ok && countResponse.ok) {
-        const notificationsData = await notificationsResponse.json();
-        const countData = await countResponse.json();
-        
+      if (notificationsResponse.status === 'fulfilled' && notificationsResponse.value.ok) {
+        const notificationsData = await notificationsResponse.value.json();
         setNotifications(notificationsData);
+      }
+
+      if (countResponse.status === 'fulfilled' && countResponse.value.ok) {
+        const countData = await countResponse.value.json();
         setUnreadCount(countData.count);
       }
     } catch (error) {
+      if (error instanceof SessionExpiredError) return;
       console.error('Erro ao buscar notificações:', error);
     } finally {
       setLoading(false);

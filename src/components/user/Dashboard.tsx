@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -9,6 +10,8 @@ import PageHeader from '@/components/common/PageHeader';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import Diagnostico from './Diagnostico';
 
 interface DashboardData {
   stats: {
@@ -47,9 +50,15 @@ interface AchievementSummary {
 }
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isDiagnosticModalOpen, setIsDiagnosticModalOpen] = useState(false);
+
+  const handleNewDiagnostic = () => {
+    setIsDiagnosticModalOpen(true);
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -121,7 +130,7 @@ const Dashboard = () => {
           { 
             label: "Novo Diagnóstico", 
             icon: Plus, 
-            onClick: () => console.log('Iniciando novo diagnóstico...'),
+            onClick: handleNewDiagnostic,
             variant: 'primary' as const
           }
         ]}
@@ -215,7 +224,7 @@ const Dashboard = () => {
                   ))
                 )}
                 
-                <Button variant="outline" className="w-full" size="lg">
+                <Button variant="outline" className="w-full" size="lg" onClick={handleNewDiagnostic}>
                   <Plus className="mr-2 h-4 w-4" />
                   Fazer Novo Diagnóstico
                 </Button>
@@ -272,7 +281,7 @@ const Dashboard = () => {
                     </div>
                   ))}
                 </div>
-                <Button variant="outline" className="w-full mt-4" size="sm">
+                <Button variant="outline" className="w-full mt-4" size="sm" onClick={() => navigate('/conquistas')}>
                   Ver Todas as Conquistas
                 </Button>
               </CardContent>
@@ -284,15 +293,15 @@ const Dashboard = () => {
                 <CardTitle>Ações Rápidas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start" size="sm">
+                <Button variant="outline" className="w-full justify-start" size="sm" onClick={handleNewDiagnostic}>
                   <FileText className="mr-2 h-4 w-4" />
                   Novo Diagnóstico
                 </Button>
-                <Button variant="outline" className="w-full justify-start" size="sm">
+                <Button variant="outline" className="w-full justify-start" size="sm" onClick={() => navigate('/conquistas')}>
                   <Users className="mr-2 h-4 w-4" />
                   Ver Ranking
                 </Button>
-                <Button variant="outline" className="w-full justify-start" size="sm">
+                <Button variant="outline" className="w-full justify-start" size="sm" onClick={() => navigate('/conquistas')}>
                   <Trophy className="mr-2 h-4 w-4" />
                   Minhas Conquistas
                 </Button>
@@ -301,6 +310,12 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={isDiagnosticModalOpen} onOpenChange={setIsDiagnosticModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <Diagnostico mode="modal" onComplete={() => setIsDiagnosticModalOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

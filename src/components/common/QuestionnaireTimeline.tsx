@@ -31,6 +31,7 @@ interface QuestionnaireTimelineProps {
   onViewDetails: (questionnaire: Questionnaire) => void;
   onEdit: (questionnaire: Questionnaire) => void;
   onDelete: (questionnaire: Questionnaire) => void;
+  onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -78,6 +79,7 @@ export default function QuestionnaireTimeline({
   onViewDetails, 
   onEdit, 
   onDelete, 
+  onToggleActive,
   canEdit, 
   canDelete 
 }: QuestionnaireTimelineProps) {
@@ -153,7 +155,9 @@ export default function QuestionnaireTimeline({
                                 </Badge>
                                 <Badge 
                                   variant={questionnaire.is_active ? "default" : "secondary"}
-                                  className={questionnaire.is_active ? "bg-green-500" : "bg-gray-500"}
+                                  className={`cursor-pointer ${questionnaire.is_active ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 hover:bg-gray-600"}`}
+                                  onClick={() => canEdit && onToggleActive(questionnaire)}
+                                  title={canEdit ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
                                 >
                                   {questionnaire.is_active ? "Ativo" : "Inativo"}
                                 </Badge>

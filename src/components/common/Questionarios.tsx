@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +7,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   FileText, 
   Clock, 
@@ -41,6 +45,23 @@ import QuestionnaireTable from '@/components/common/QuestionnaireTable';
 import QuestionnaireTimeline from '@/components/common/QuestionnaireTimeline';
 import { api, axiosInstance } from '@/lib/api';
 
+interface QuestionOption {
+  id: string;
+  value: string;
+  label: string;
+  score: number;
+  order: number;
+}
+
+interface Question {
+  id: string;
+  question: string;
+  type: string;
+  order: number;
+  required: boolean;
+  options: QuestionOption[];
+}
+
 interface Questionnaire {
   id: string;
   title: string;
@@ -52,6 +73,7 @@ interface Questionnaire {
   created_at: string;
   updated_at: string;
   created_by: string;
+  questions?: Question[];
 }
 
 const mockQuestionnaires: Questionnaire[] = [
@@ -69,9 +91,12 @@ const mockQuestionnaires: Questionnaire[] = [
   }
 ];
 
+import { toast } from 'sonner';
+
 export default function Questionarios() {
   const { token, user } = useAuthStore();
   const { hasPermission } = usePermissions();
+  const navigate = useNavigate();
 
   // Estados
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
@@ -79,6 +104,11 @@ export default function Questionarios() {
   const [error, setError] = useState<string | null>(null);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<Questionnaire | null>(null);
   const [isRespondModalOpen, setIsRespondModalOpen] = useState(false);
+  
+  // Estados para responder questionário
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submittingResponse, setSubmittingResponse] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -98,6 +128,7 @@ export default function Questionarios() {
       required: boolean;
       options?: Array<{
         value: string;
+        label?: string;
         score?: number;
       }>;
     }>;
@@ -176,10 +207,15 @@ export default function Questionarios() {
         title: string;
         description?: string;
         type: string;
-        questions?: Array<unknown>;
+        is_active: boolean;
+        created_at: string;
+        updated_at: string;
+        created_by: string;
+        questions?: Question[];
         estimated_time?: number;
       }) => ({
         ...q,
+        questions: q.questions || [],
         questions_count: q.questions?.length || 0,
         estimated_time: q.estimated_time || 15
       }));
@@ -287,6 +323,7 @@ export default function Questionarios() {
       required: boolean;
       options?: Array<{
         value: string;
+        label?: string;
         score?: number;
       }>;
     }>;
@@ -334,7 +371,7 @@ export default function Questionarios() {
           is_active: true,
           options: q.options?.map((opt, optIndex: number) => ({
             value: String(opt.value || ''),
-            label: String(opt.label || ''),
+            label: String(opt.label || opt.value || ''),
             score: Number(opt.score) || 1,
             order: optIndex + 1
           })) || []
@@ -495,6 +532,60 @@ export default function Questionarios() {
     }
   };
 
+  const handleNextQuestion = () => {
+    if (!selectedQuestionnaire?.questions) return;
+    
+    if (currentQuestionIndex < selectedQuestionnaire.questions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    } else {
+      // Finalizar
+      handleSubmitResponse();
+    }
+  };
+
+  const handlePreviousQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
+  };
+
+  const handleAnswerChange = (value: string) => {
+    if (!selectedQuestionnaire?.questions) return;
+    
+    const currentQuestion = selectedQuestionnaire.questions[currentQuestionIndex];
+    setAnswers(prev => ({
+      ...prev,
+      [currentQuestion.id]: value
+    }));
+  };
+
+  const handleSubmitResponse = async () => {
+    if (!selectedQuestionnaire) return;
+
+    try {
+      setSubmittingResponse(true);
+      
+      const response = await api.post(`/questionnaires/${selectedQuestionnaire.id}/respond`, {
+        responses: answers
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Erro ao enviar respostas');
+      }
+
+      toast.success('Questionário respondido com sucesso!');
+      setIsRespondModalOpen(false);
+      
+      // Opcional: recarregar dados ou redirecionar
+    } catch (error: any) {
+      console.error('Erro ao enviar respostas:', error);
+      toast.error(error.message || 'Erro ao enviar respostas. Tente novamente.');
+    } finally {
+      setSubmittingResponse(false);
+    }
+  };
+
   // Verificar permissões
   const canCreate = hasPermission('questionario.create');
   const canEdit = hasPermission('questionario.edit');
@@ -540,6 +631,12 @@ export default function Questionarios() {
           { label: "Sistema de Diagnósticos Ativo", icon: Activity }
         ]}
         actions={[
+          {
+            label: canCreate ? "Respostas (Admin)" : "Minhas Respostas",
+            icon: List,
+            onClick: () => navigate('/meus-questionarios'),
+            variant: 'secondary'
+          },
           ...(canCreate ? [{
             label: "Criar Questionário", 
             icon: Plus, 
@@ -550,7 +647,7 @@ export default function Questionarios() {
       />
 
       {/* Barra de Controles */}
-      <div className="bg-white border border-border rounded-lg p-4 shadow-sm">
+      <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
           {/* Controles de Visualização */}
           <div className="flex items-center gap-2">
@@ -617,7 +714,7 @@ export default function Questionarios() {
               </SelectContent>
             </Select>
 
-            <Select value={sortBy} onValueChange={setSortBy}>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as any)}>
               <SelectTrigger className="w-24 h-8 text-xs">
                 <SelectValue placeholder="Ordenar" />
               </SelectTrigger>
@@ -756,12 +853,7 @@ export default function Questionarios() {
         {selectedQuestionnaire && (
           <div className="space-y-6">
             <div className="bg-muted p-4 rounded-lg">
-              <h4 className="font-medium mb-2">Informações do Questionário</h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Perguntas:</span>
-                  <span className="ml-2 font-medium">{selectedQuestionnaire.questions_count}</span>
-                </div>
                 <div>
                   <span className="text-muted-foreground">Tempo estimado:</span>
                   <span className="ml-2 font-medium">{selectedQuestionnaire.estimated_time} minutos</span>
@@ -770,26 +862,138 @@ export default function Questionarios() {
                   <span className="text-muted-foreground">Tipo:</span>
                   <span className="ml-2 font-medium">{selectedQuestionnaire.type}</span>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Status:</span>
-                  <span className="ml-2 font-medium">
-                    {selectedQuestionnaire.is_active ? "Ativo" : "Inativo"}
-                  </span>
-                </div>
               </div>
             </div>
             
-            <div className="text-center py-8">
-              <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Funcionalidade em Desenvolvimento</h3>
-              <p className="text-muted-foreground mb-6">
-                O sistema de resposta de questionários está sendo implementado. 
-                Em breve você poderá responder questionários e gerar diagnósticos automáticos.
-              </p>
-              <Button onClick={() => setIsRespondModalOpen(false)}>
-                Entendi
-              </Button>
-            </div>
+            {!selectedQuestionnaire.questions || selectedQuestionnaire.questions.length === 0 ? (
+              <div className="text-center py-8">
+                <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Este questionário não possui perguntas</h3>
+                <p className="text-muted-foreground mb-6">
+                  Entre em contato com o administrador para verificar este questionário.
+                </p>
+                <Button onClick={() => setIsRespondModalOpen(false)}>
+                  Fechar
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                  <span>Questão {currentQuestionIndex + 1} de {selectedQuestionnaire.questions.length}</span>
+                  <span>{Math.round(((currentQuestionIndex + 1) / selectedQuestionnaire.questions.length) * 100)}%</span>
+                </div>
+                <Progress value={((currentQuestionIndex + 1) / selectedQuestionnaire.questions.length) * 100} className="h-2" />
+                
+                <div className="py-4">
+                  <h3 className="text-xl font-medium mb-4">
+                    {selectedQuestionnaire.questions[currentQuestionIndex].question}
+                    {selectedQuestionnaire.questions[currentQuestionIndex].required && <span className="text-red-500 ml-1">*</span>}
+                  </h3>
+                  
+                  {selectedQuestionnaire.questions[currentQuestionIndex].type === 'text' && (
+                    <Textarea 
+                      placeholder="Sua resposta..."
+                      value={answers[selectedQuestionnaire.questions[currentQuestionIndex].id] || ''}
+                      onChange={(e) => handleAnswerChange(e.target.value)}
+                      rows={4}
+                    />
+                  )}
+                  
+                  {/* Renderização de opções para Scale, Choice e Boolean */}
+                  {(selectedQuestionnaire.questions[currentQuestionIndex].type === 'choice' || 
+                    selectedQuestionnaire.questions[currentQuestionIndex].type === 'multiple_choice' || 
+                    selectedQuestionnaire.questions[currentQuestionIndex].type === 'escala' || 
+                    selectedQuestionnaire.questions[currentQuestionIndex].type === 'scale' ||
+                    selectedQuestionnaire.questions[currentQuestionIndex].type === 'boolean') && (
+                    <RadioGroup 
+                      value={answers[selectedQuestionnaire.questions[currentQuestionIndex].id] || ''} 
+                      onValueChange={handleAnswerChange}
+                      className="space-y-3"
+                    >
+                      {/* Lógica especial para Scale/Escala */}
+                      {(selectedQuestionnaire.questions[currentQuestionIndex].type === 'escala' || 
+                        selectedQuestionnaire.questions[currentQuestionIndex].type === 'scale') ? (
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-xs text-muted-foreground mb-2">
+                            <span>Muito Ruim</span>
+                            <span>Excelente</span>
+                          </div>
+                          <div className="grid grid-cols-6 gap-2 sm:grid-cols-11">
+                            {Array.from({ length: 11 }, (_, i) => ({
+                              id: `scale-${i}`,
+                              value: String(i),
+                              label: String(i),
+                              score: i,
+                              order: i
+                            })).map((option) => (
+                              <div key={option.value} className="flex flex-col items-center">
+                                <RadioGroupItem 
+                                  value={option.value} 
+                                  id={`scale-${option.value}`} 
+                                  className="mb-1" 
+                                />
+                                <Label 
+                                  htmlFor={`scale-${option.value}`} 
+                                  className="cursor-pointer text-xs text-center font-medium"
+                                >
+                                  {option.value}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="text-center mt-3">
+                            {answers[selectedQuestionnaire.questions[currentQuestionIndex].id] && (
+                              <span className="text-sm font-medium text-primary">
+                                Nota selecionada: {answers[selectedQuestionnaire.questions[currentQuestionIndex].id]}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Lógica padrão para Choice/Boolean */
+                        selectedQuestionnaire.questions[currentQuestionIndex].options.map((option) => (
+                          <div key={option.id} className="flex items-center space-x-2 border p-3 rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => handleAnswerChange(option.value)}>
+                            <RadioGroupItem value={option.value} id={`option-${option.id}`} />
+                            <Label htmlFor={`option-${option.id}`} className="flex-1 cursor-pointer font-normal">
+                              {option.label || option.value}
+                            </Label>
+                          </div>
+                        ))
+                      )}
+                    </RadioGroup>
+                  )}
+                </div>
+                
+                <div className="flex justify-between pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={handlePreviousQuestion}
+                    disabled={currentQuestionIndex === 0 || submittingResponse}
+                  >
+                    Anterior
+                  </Button>
+                  
+                  <Button
+                    onClick={handleNextQuestion}
+                    disabled={
+                      (selectedQuestionnaire.questions[currentQuestionIndex].required && !answers[selectedQuestionnaire.questions[currentQuestionIndex].id]) || 
+                      submittingResponse
+                    }
+                  >
+                    {submittingResponse ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Enviando...
+                      </>
+                    ) : currentQuestionIndex === selectedQuestionnaire.questions.length - 1 ? (
+                      'Finalizar'
+                    ) : (
+                      'Próxima'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </ModalLayout>

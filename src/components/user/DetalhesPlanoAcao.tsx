@@ -58,6 +58,7 @@ import { toast } from 'sonner';
 import { cn } from "@/lib/utils";
 import { getActionPlan, updateActionPlan } from "@/lib/action-plans-api";
 import type { ActionPlanDto, GoalDto } from "@/lib/action-plans-api";
+import { api } from "@/lib/api";
 // Dados mockados para desenvolvimento
 const mockPlanos: { [key: string]: PlanoAcao } = {
   '1': {
@@ -174,9 +175,9 @@ const DetalhesPlanoAcao = () => {
       const statusMap: Record<string, string> = {
         'Rascunho': 'rascunho',
         'Em Andamento': 'em_andamento',
+        'Pausado': 'pausado',
         'Concluído': 'concluido',
-        'Atrasado': 'atrasado',
-        'Pendente': 'pendente'
+        'Cancelado': 'cancelado'
       };
       
       const response = await api.patch(`/action-plans/${plano.id}`, {
@@ -411,8 +412,8 @@ const DetalhesPlanoAcao = () => {
       setPlano(prev => prev ? { ...prev, tarefas: tarefasAtualizadas, progresso: novoProgresso } : prev);
 
       // Envia TODAS as metas para evitar exclusão indevida no backend
-      const goalsPayload = tarefasAtualizadas.map(t => ({
-        id: t.id,
+      const goalsPayload: GoalDto[] = tarefasAtualizadas.map(t => ({
+        id: t.id.startsWith('new-') || t.id.includes('-g') ? undefined : t.id,
         title: t.descricao,
         status: t.concluida ? 'concluida' : 'pendente',
         progress: t.concluida ? 100 : 0,
@@ -597,7 +598,7 @@ const DetalhesPlanoAcao = () => {
           <CardContent>
             <div className="flex items-center justify-between mb-2">
               <div className="text-3xl font-bold">{plano.progresso}%</div>
-              <Badge variant={plano.progresso === 100 ? 'success' : 'outline'}>
+              <Badge variant={plano.progresso === 100 ? 'secondary' : 'outline'}>
                 {plano.progresso === 100 ? 'Concluído' : 'Em andamento'}
               </Badge>
             </div>

@@ -380,6 +380,7 @@ export const PERMISSION_MAPPING = {
     '/admin-dashboard': 'dashboard.admin.view',
     '/master-dashboard': 'dashboard.master.view',
     '/questionarios': 'questionario.view',
+    '/meus-questionarios': 'questionario.view',
     '/diagnosticos': 'diagnostico.view',
     '/diagnosticos-globais': 'diagnostico.global',
     '/planos-acao': 'plano.view',

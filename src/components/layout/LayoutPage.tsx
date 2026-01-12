@@ -61,6 +61,8 @@ function DashboardContent({ children }: DashboardLayoutProps) {
               '/diagnostico',
               '/conquistas',
               '/meus-diagnosticos',
+              '/questionarios',
+              '/meus-questionarios',
               '/planos-acao',
               '/planos-acao/', // Inclui a rota base
               ...Array(10).fill(0).map((_, i) => `/planos-acao/${i+1}`), // Inclui exemplos de IDs
@@ -99,7 +101,7 @@ function DashboardContent({ children }: DashboardLayoutProps) {
     <div className="min-h-screen w-full">
       <AppSidebar />
       <main className={`transition-all duration-300 ${collapsed ? 'ml-20' : 'ml-80'}`}>
-        <header className="h-16 flex items-center justify-between border-b px-6 bg-white">
+        <header className="h-16 flex items-center justify-between border-b px-6 bg-background transition-colors duration-300">
           <SidebarTrigger />
           <div className="flex items-center gap-4">
             <NotificationCenter />

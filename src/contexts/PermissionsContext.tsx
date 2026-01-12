@@ -16,6 +16,11 @@ export const PERMISSIONS = {
   'diagnostico.delete': 'Excluir Diagnósticos',
   'diagnostico.global': 'Acessar Diagnósticos Globais',
   
+  // Questionários
+  'questionario.create': 'Criar Questionários',
+  'questionario.edit': 'Editar Questionários',
+  'questionario.delete': 'Excluir Questionários',
+  
   // Planos de Ação
   'plano.view': 'Visualizar Planos de Ação',
   'plano.create': 'Criar Planos de Ação',
@@ -68,6 +73,12 @@ export const PERMISSIONS = {
   'relatorio.export': 'Exportar Relatórios',
   'relatorio.global': 'Acessar Relatórios Globais',
   
+  // Notificações
+  'notification.view': 'Visualizar Notificações',
+  'notification.create': 'Criar Notificações',
+  'notification.manage': 'Gerenciar Notificações',
+  'notification.broadcast': 'Enviar Notificações Globais',
+
   // Financeiro
   'financeiro.view': 'Visualizar Financeiro',
   'financeiro.manage': 'Gerenciar Financeiro',
