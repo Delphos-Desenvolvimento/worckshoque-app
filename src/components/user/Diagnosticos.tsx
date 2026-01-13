@@ -480,13 +480,14 @@ const DiagnosticDetailView = ({ diagnostic }: { diagnostic: DiagnosticData }) =>
     });
   };
 
-  const parseAIAnalysis = (content: any): string => {
+  const parseAIAnalysis = (content: unknown): string => {
     if (!content) return '';
     
     // Se já for objeto
-    if (typeof content === 'object') {
-       if (content.analysis_summary) return content.analysis_summary;
-       if (Array.isArray(content.insights)) return content.insights.join('\n\n');
+    if (typeof content === 'object' && content !== null) {
+       const typedContent = content as { analysis_summary?: string; insights?: string[] };
+       if (typedContent.analysis_summary) return typedContent.analysis_summary;
+       if (Array.isArray(typedContent.insights)) return typedContent.insights.join('\n\n');
        return ''; 
     }
     

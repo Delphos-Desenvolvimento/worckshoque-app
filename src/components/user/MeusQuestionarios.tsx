@@ -56,77 +56,77 @@ export default function MeusQuestionarios() {
     : "Histórico das suas respostas e avaliações";
 
   useEffect(() => {
+    const loadQuestionnaires = async () => {
+      try {
+        // Endpoint diferente para admin/master (lista todas as respostas) ou user (apenas as suas)
+        const endpoint = isAdminOrMaster ? '/questionnaires/responses' : '/questionnaires/my/responses';
+        
+        const response = await api.get(endpoint);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `Erro ao carregar respostas (${response.status})`);
+        }
+        
+        const data: QuestionnaireResponse[] = await response.json();
+        if (!Array.isArray(data)) {
+          throw new Error('Formato de dados inválido recebido do servidor');
+        }
+
+        const summariesMap = new Map<string, QuestionnaireSummary>();
+
+        for (const r of data) {
+          const key = r.questionnaire_id;
+          const existing = summariesMap.get(key);
+          const scoreVal = typeof r.score === 'number' ? r.score : null;
+          const completedAt = r.completed_at;
+
+          if (!existing) {
+            summariesMap.set(key, {
+              questionnaire_id: key,
+              title: r.questionnaire?.title ?? 'Questionário',
+              type: r.questionnaire?.type ?? 'desconhecido',
+              responses_count: 1,
+              average_score: scoreVal ?? 0,
+              completed_at: completedAt,
+              latest_response: completedAt,
+              respondents: 1 // Contagem inicial
+            });
+          } else {
+            const newCount = existing.responses_count + 1;
+            const previousAvg = existing.average_score;
+
+            const newAvg = scoreVal !== null
+              ? ((previousAvg * existing.responses_count) + scoreVal) / newCount
+              : previousAvg;
+
+            const latest =
+              new Date(completedAt).getTime() > new Date(existing.latest_response).getTime()
+                ? completedAt
+                : existing.latest_response;
+
+            summariesMap.set(key, {
+              ...existing,
+              responses_count: newCount,
+              average_score: Number.isFinite(newAvg) ? Math.round(newAvg * 10) / 10 : existing.average_score,
+              latest_response: latest,
+              completed_at: latest,
+              respondents: (existing.respondents || 0) + 1 // Incremento simplificado
+            });
+          }
+        }
+
+        setQuestionnaires(Array.from(summariesMap.values()));
+      } catch (error) {
+        console.error('Erro ao carregar questionários:', error);
+        setQuestionnaires([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     loadQuestionnaires();
   }, [isAdminOrMaster]); // Recarregar se o papel mudar (embora raro em tempo real)
-
-  const loadQuestionnaires = async () => {
-    try {
-      // Endpoint diferente para admin/master (lista todas as respostas) ou user (apenas as suas)
-      const endpoint = isAdminOrMaster ? '/questionnaires/responses' : '/questionnaires/my/responses';
-      
-      const response = await api.get(endpoint);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erro ao carregar respostas (${response.status})`);
-      }
-      
-      const data: QuestionnaireResponse[] = await response.json();
-      if (!Array.isArray(data)) {
-        throw new Error('Formato de dados inválido recebido do servidor');
-      }
-
-      const summariesMap = new Map<string, QuestionnaireSummary>();
-
-      for (const r of data) {
-        const key = r.questionnaire_id;
-        const existing = summariesMap.get(key);
-        const scoreVal = typeof r.score === 'number' ? r.score : null;
-        const completedAt = r.completed_at;
-
-        if (!existing) {
-          summariesMap.set(key, {
-            questionnaire_id: key,
-            title: r.questionnaire?.title ?? 'Questionário',
-            type: r.questionnaire?.type ?? 'desconhecido',
-            responses_count: 1,
-            average_score: scoreVal ?? 0,
-            completed_at: completedAt,
-            latest_response: completedAt,
-            respondents: 1 // Contagem inicial
-          });
-        } else {
-          const newCount = existing.responses_count + 1;
-          const previousAvg = existing.average_score;
-
-          const newAvg = scoreVal !== null
-            ? ((previousAvg * existing.responses_count) + scoreVal) / newCount
-            : previousAvg;
-
-          const latest =
-            new Date(completedAt).getTime() > new Date(existing.latest_response).getTime()
-              ? completedAt
-              : existing.latest_response;
-
-          summariesMap.set(key, {
-            ...existing,
-            responses_count: newCount,
-            average_score: Number.isFinite(newAvg) ? Math.round(newAvg * 10) / 10 : existing.average_score,
-            latest_response: latest,
-            completed_at: latest,
-            respondents: (existing.respondents || 0) + 1 // Incremento simplificado
-          });
-        }
-      }
-
-      setQuestionnaires(Array.from(summariesMap.values()));
-    } catch (error) {
-      console.error('Erro ao carregar questionários:', error);
-      setQuestionnaires([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const loadDetailedResponses = async (questionnaireId: string) => {
     try {

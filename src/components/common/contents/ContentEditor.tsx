@@ -75,7 +75,8 @@ export const ContentEditor: React.FC = () => {
           throw new Error('Falha ao carregar conteúdo');
         }
         const data = await response.json();
-        setFormData({
+        setFormData(prev => ({
+          ...prev,
           id: data.id,
           title: data.title ?? '',
           description: data.description ?? '',
@@ -84,12 +85,12 @@ export const ContentEditor: React.FC = () => {
           content: data.content ?? '',
           metadata: data.metadata ?? { duration: 5, difficulty: 'beginner', tags: [] },
           accessLevel: data.access_level ?? 'public',
-          allowedRoles: formData.allowedRoles,
+          allowedRoles: prev.allowedRoles,
           createdByName: user?.name || '',
           status: data.status ?? 'draft',
           specialtyRestrictions: [],
           isNew: false,
-        });
+        }));
       } catch (error) {
         console.error('Erro ao carregar conteúdo:', error);
         toast.error('Não foi possível carregar o conteúdo');

@@ -578,9 +578,10 @@ export default function Questionarios() {
       setIsRespondModalOpen(false);
       
       // Opcional: recarregar dados ou redirecionar
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao enviar respostas:', error);
-      toast.error(error.message || 'Erro ao enviar respostas. Tente novamente.');
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao enviar respostas. Tente novamente.';
+      toast.error(errorMessage);
     } finally {
       setSubmittingResponse(false);
     }
@@ -714,7 +715,7 @@ export default function Questionarios() {
               </SelectContent>
             </Select>
 
-            <Select value={sortBy} onValueChange={(value) => setSortBy(value as any)}>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'title' | 'created_at' | 'type')}>
               <SelectTrigger className="w-24 h-8 text-xs">
                 <SelectValue placeholder="Ordenar" />
               </SelectTrigger>
