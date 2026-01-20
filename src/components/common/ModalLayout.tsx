@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -59,7 +60,9 @@ const ModalLayout: React.FC<ModalLayoutProps> = ({
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Overlay */}
       <div 
@@ -108,7 +111,7 @@ const ModalLayout: React.FC<ModalLayoutProps> = ({
         </div>
       </div>
     </div>
-  );
+  , document.body);
 };
 
 export default ModalLayout;

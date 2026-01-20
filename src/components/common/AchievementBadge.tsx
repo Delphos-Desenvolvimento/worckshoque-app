@@ -1,7 +1,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Star, Zap, Target, Medal, Crown } from 'lucide-react';
+import { Trophy, Star, Zap, Target, Medal, Crown, FileText } from 'lucide-react';
 
 interface Achievement {
   id: string;
@@ -27,6 +27,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   target: Target,
   medal: Medal,
   crown: Crown,
+  'file-text': FileText,
 };
 
 const levelColors = {

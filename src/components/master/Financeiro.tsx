@@ -75,8 +75,10 @@ import {
   TrendingUp as UpIcon,
   TrendingDown as DownIcon
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PageHeader from '@/components/common/PageHeader';
+import { api } from '@/lib/api';
 
 // Interfaces
 interface Transacao {
@@ -125,159 +127,15 @@ interface MetricaFinanceira {
   cor: string;
 }
 
-// Mock data
-const mockTransacoes: Transacao[] = [
-  {
-    id: '1',
-    tipo: 'receita',
-    categoria: 'assinatura',
-    descricao: 'Assinatura Premium - TechCorp Solutions',
-    valor: 2500.00,
-    status: 'aprovado',
-    data: '2024-01-15T10:00:00Z',
-    empresa: {
-      id: '1',
-      nome: 'TechCorp Solutions',
-      cnpj: '12.345.678/0001-90'
-    },
-    metodoPagamento: 'cartao',
-    referencia: 'TXN-001',
-    observacoes: 'Pagamento processado com sucesso'
-  },
-  {
-    id: '2',
-    tipo: 'receita',
-    categoria: 'assinatura',
-    descricao: 'Assinatura Básica - Inovação Digital',
-    valor: 500.00,
-    status: 'aprovado',
-    data: '2024-01-20T14:30:00Z',
-    empresa: {
-      id: '2',
-      nome: 'Inovação Digital Ltda',
-      cnpj: '98.765.432/0001-10'
-    },
-    metodoPagamento: 'pix',
-    referencia: 'TXN-002'
-  },
-  {
-    id: '3',
-    tipo: 'despesa',
-    categoria: 'infraestrutura',
-    descricao: 'Serviços de Cloud - AWS',
-    valor: 1200.00,
-    status: 'aprovado',
-    data: '2024-01-25T09:15:00Z',
-    empresa: {
-      id: '0',
-      nome: 'WorkChoque',
-      cnpj: '00.000.000/0001-00'
-    },
-    metodoPagamento: 'cartao',
-    referencia: 'TXN-003',
-    observacoes: 'Custos de infraestrutura mensal'
-  }
-];
-
-const mockAssinaturas: Assinatura[] = [
-  {
-    id: '1',
-    empresa: {
-      id: '1',
-      nome: 'TechCorp Solutions',
-      cnpj: '12.345.678/0001-90'
-    },
-    plano: 'premium',
-    valor: 2500.00,
-    status: 'ativa',
-    dataInicio: '2024-01-01',
-    dataVencimento: '2024-12-31',
-    proximaCobranca: '2024-02-01',
-    ciclo: 'mensal',
-    desconto: 0,
-    valorComDesconto: 2500.00,
-    observacoes: 'Cliente premium com excelente histórico'
-  },
-  {
-    id: '2',
-    empresa: {
-      id: '2',
-      nome: 'Inovação Digital Ltda',
-      cnpj: '98.765.432/0001-10'
-    },
-    plano: 'basico',
-    valor: 500.00,
-    status: 'ativa',
-    dataInicio: '2024-01-15',
-    dataVencimento: '2024-12-15',
-    proximaCobranca: '2024-02-15',
-    ciclo: 'mensal',
-    desconto: 10,
-    valorComDesconto: 450.00
-  },
-  {
-    id: '3',
-    empresa: {
-      id: '3',
-      nome: 'MegaCorp Industries',
-      cnpj: '11.222.333/0001-44'
-    },
-    plano: 'enterprise',
-    valor: 5000.00,
-    status: 'suspensa',
-    dataInicio: '2024-01-01',
-    dataVencimento: '2024-12-31',
-    proximaCobranca: '2024-02-01',
-    ciclo: 'mensal',
-    desconto: 0,
-    valorComDesconto: 5000.00,
-    observacoes: 'Pagamento em atraso - suspensa temporariamente'
-  }
-];
-
-const mockMetricas: MetricaFinanceira[] = [
-  {
-    nome: 'Receita Total',
-    valor: 15000.00,
-    variacao: 12.5,
-    tendencia: 'up',
-    icone: DollarSign,
-    cor: 'text-green-600'
-  },
-  {
-    nome: 'Receita Mensal',
-    valor: 3000.00,
-    variacao: 8.2,
-    tendencia: 'up',
-    icone: TrendingUp,
-    cor: 'text-blue-600'
-  },
-  {
-    nome: 'Assinaturas Ativas',
-    valor: 15,
-    variacao: 25.0,
-    tendencia: 'up',
-    icone: Users,
-    cor: 'text-purple-600'
-  },
-  {
-    nome: 'Taxa de Churn',
-    valor: 5.2,
-    variacao: -15.3,
-    tendencia: 'down',
-    icone: TrendingDown,
-    cor: 'text-orange-600'
-  }
-];
-
 export default function Financeiro() {
   const { hasPermission } = usePermissions();
   const [activeTab, setActiveTab] = useState('overview');
   
   // Estados principais
-  const [transacoes, setTransacoes] = useState<Transacao[]>(mockTransacoes);
-  const [assinaturas, setAssinaturas] = useState<Assinatura[]>(mockAssinaturas);
-  const [metricas, setMetricas] = useState<MetricaFinanceira[]>(mockMetricas);
+  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+  const [assinaturas, setAssinaturas] = useState<Assinatura[]>([]);
+  const [metricas, setMetricas] = useState<MetricaFinanceira[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Estados para filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -290,6 +148,102 @@ export default function Financeiro() {
   const [selectedAssinatura, setSelectedAssinatura] = useState<Assinatura | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  const fetchFinancialData = async () => {
+    try {
+      setLoading(true);
+
+      const [txRes, subRes, summaryRes] = await Promise.all([
+        api.get('/reports/financial/transactions?limit=100'),
+        api.get('/reports/financial/subscriptions?limit=100'),
+        api.get('/reports/financial/summary')
+      ]);
+
+      if (!txRes.ok || !subRes.ok || !summaryRes.ok) throw new Error('Falha ao carregar dados');
+
+      const txData = await txRes.json();
+      const subData = await subRes.json();
+      const summaryData = await summaryRes.json();
+
+      // Mapeamento de dados
+      const mapTipo = (t: string) => {
+        const map: Record<string, string> = { 'revenue': 'receita', 'expense': 'despesa', 'refund': 'reembolso', 'subscription': 'assinatura', 'payment': 'pagamento' };
+        return map[t] || t;
+      };
+      const mapCat = (c: string) => {
+        const map: Record<string, string> = { 'subscription': 'assinatura', 'infrastructure': 'infraestrutura', 'marketing': 'marketing', 'personnel': 'pessoal' };
+        return map[c] || c;
+      };
+      const mapStatus = (s: string) => {
+        const map: Record<string, string> = { 'approved': 'aprovado', 'processing': 'processando', 'pending': 'pendente', 'rejected': 'rejeitado', 'cancelled': 'cancelado' };
+        return map[s] || s;
+      };
+      const mapSubStatus = (s: string) => {
+        const map: Record<string, string> = { 'active': 'ativa', 'suspended': 'suspensa', 'cancelled': 'cancelada', 'overdue': 'vencida' };
+        return map[s] || s;
+      };
+
+      setTransacoes(txData.data.map((t: Transacao & { tipo: string; categoria: string; status: string }) => ({
+        ...t,
+        tipo: mapTipo(t.tipo) as Transacao['tipo'],
+        categoria: mapCat(t.categoria) as Transacao['categoria'],
+        status: mapStatus(t.status) as Transacao['status'],
+        valor: Number(t.valor)
+      })));
+
+      setAssinaturas(subData.data.map((s: Assinatura & { status: string }) => ({
+        ...s,
+        status: mapSubStatus(s.status) as Assinatura['status'],
+        valor: Number(s.valor),
+        valorComDesconto: Number(s.valorComDesconto)
+      })));
+
+      setMetricas([
+        {
+          nome: 'Receita Mensal (MRR)',
+          valor: summaryData.mrr,
+          variacao: 0, // Backend needs to provide trend
+          tendencia: 'stable',
+          icone: DollarSign,
+          cor: 'text-green-600'
+        },
+        {
+          nome: 'Receita Total',
+          valor: summaryData.revenue,
+          variacao: 0,
+          tendencia: 'up',
+          icone: TrendingUp,
+          cor: 'text-blue-600'
+        },
+        {
+          nome: 'Assinaturas Ativas',
+          valor: summaryData.activeSubsCount || subData.meta.total, // fallback
+          variacao: 0,
+          tendencia: 'stable',
+          icone: Users,
+          cor: 'text-purple-600'
+        },
+        {
+          nome: 'Taxa de Churn',
+          valor: summaryData.churnRate * 100,
+          variacao: 0,
+          tendencia: 'down',
+          icone: TrendingDown,
+          cor: 'text-orange-600'
+        }
+      ]);
+
+    } catch (error) {
+      console.error('Erro ao carregar financeiro:', error);
+      // Fallback to empty or toast error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFinancialData();
+  }, []);
 
   // Filtrar transações
   const filteredTransacoes = transacoes.filter(transacao => {
@@ -329,9 +283,8 @@ export default function Financeiro() {
   };
 
   const handleRefresh = () => {
-    // Placeholder de atualização: futuramente buscar dados reais da API
-    // Aqui podemos simular um refresh sem alterar o estado
-    console.log('Atualizar métricas e listas');
+    fetchFinancialData();
+    toast.success('Dados atualizados com sucesso!');
   };
 
   // Função para obter cor do status
@@ -470,7 +423,7 @@ export default function Financeiro() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="bg-white rounded-xl border border-border shadow-sm p-2 mb-6">
+          <div className="bg-card rounded-xl border border-border shadow-sm p-2 mb-6">
             <TabsList className="grid w-full grid-cols-3 bg-transparent h-12">
               <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-200 rounded-lg">
                 <BarChart3 className="w-4 h-4" />
@@ -582,7 +535,7 @@ export default function Financeiro() {
                     />
                   </div>
                 </div>
-                <Select value={filterTipo} onValueChange={(value: string) => setFilterTipo(value)}>
+                <Select value={filterTipo} onValueChange={(value) => setFilterTipo(value as "all" | "receita" | "despesa" | "reembolso" | "assinatura" | "pagamento")}>
                   <SelectTrigger className="w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue />
@@ -596,7 +549,7 @@ export default function Financeiro() {
                     <SelectItem value="pagamento">Pagamento</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterStatus} onValueChange={(value: string) => setFilterStatus(value)}>
+                <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | "pendente" | "processando" | "aprovado" | "rejeitado" | "cancelado")}>
                   <SelectTrigger className="w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue />
@@ -610,7 +563,7 @@ export default function Financeiro() {
                     <SelectItem value="cancelado">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterCategoria} onValueChange={(value: string) => setFilterCategoria(value)}>
+                <Select value={filterCategoria} onValueChange={(value) => setFilterCategoria(value as "all" | "assinatura" | "publicidade" | "infraestrutura" | "pessoal" | "marketing" | "outros")}>
                   <SelectTrigger className="w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue />
@@ -706,7 +659,7 @@ export default function Financeiro() {
                             <Eye className="w-4 h-4" />
                           </Button>
                         )}
-                        {hasPermission('financeiro.delete') && (
+                        {hasPermission('financeiro.manage') && (
                           <Button
                             variant="outline"
                             size="sm"

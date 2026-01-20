@@ -81,3 +81,13 @@ export async function getPlatformHistory(range: DateRange, companyId?: string) {
   if (!res.ok) throw new Error(`Falha ao obter histórico da plataforma: ${res.status}`);
   return res.json();
 }
+
+export async function getCompanyDashboard(range: DateRange, companyId?: string) {
+  const params = new URLSearchParams();
+  if (range.from) params.append('from', range.from);
+  if (range.to) params.append('to', range.to);
+  if (companyId) params.append('companyId', companyId);
+  const res = await api.get(`/api/reports/company/dashboard?${params.toString()}`);
+  if (!res.ok) throw new Error(`Falha ao obter dashboard da empresa: ${res.status}`);
+  return res.json();
+}

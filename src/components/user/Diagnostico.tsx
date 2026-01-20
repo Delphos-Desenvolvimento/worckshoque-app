@@ -1,296 +1,448 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { ChevronRight, ChevronLeft, CheckCircle } from 'lucide-react';
-// import Header from '@/components/layout/Header'; // Removed - using DashboardLayout
-import Modal from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
+import { ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Loader2, Save } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
-const questions = [
-  {
-    id: 1,
-    question: 'Como você avalia a comunicação entre as equipes da sua empresa?',
-    options: [
-      { value: '1', label: 'Muito ruim - Praticamente não existe comunicação' },
-      { value: '2', label: 'Ruim - Comunicação falha frequentemente' },
-      { value: '3', label: 'Regular - Comunicação funciona às vezes' },
-      { value: '4', label: 'Boa - Comunicação é eficaz na maioria das vezes' },
-      { value: '5', label: 'Excelente - Comunicação é clara e constante' }
-    ]
-  },
-  {
-    id: 2,
-    question: 'Qual o nível de satisfação dos colaboradores com o ambiente de trabalho?',
-    options: [
-      { value: '1', label: 'Muito insatisfeitos - Ambiente tóxico' },
-      { value: '2', label: 'Insatisfeitos - Muitos problemas no ambiente' },
-      { value: '3', label: 'Neutros - Ambiente nem bom nem ruim' },
-      { value: '4', label: 'Satisfeitos - Ambiente agradável' },
-      { value: '5', label: 'Muito satisfeitos - Ambiente excepcional' }
-    ]
-  },
-  {
-    id: 3,
-    question: 'Como você classifica o equilíbrio entre vida pessoal e profissional na empresa?',
-    options: [
-      { value: '1', label: 'Péssimo - Trabalho consome toda a vida pessoal' },
-      { value: '2', label: 'Ruim - Dificuldade para conciliar' },
-      { value: '3', label: 'Regular - Às vezes é possível conciliar' },
-      { value: '4', label: 'Bom - Geralmente consegue conciliar bem' },
-      { value: '5', label: 'Excelente - Perfeito equilíbrio' }
-    ]
-  },
-  {
-    id: 4,
-    question: 'Qual o nível de reconhecimento e valorização dos colaboradores?',
-    options: [
-      { value: '1', label: 'Nenhum - Trabalho não é reconhecido' },
-      { value: '2', label: 'Baixo - Pouco reconhecimento' },
-      { value: '3', label: 'Moderado - Reconhecimento ocasional' },
-      { value: '4', label: 'Alto - Bom reconhecimento do trabalho' },
-      { value: '5', label: 'Muito alto - Excelente reconhecimento' }
-    ]
-  },
-  {
-    id: 5,
-    question: 'Como está o desenvolvimento profissional e oportunidades de crescimento?',
-    options: [
-      { value: '1', label: 'Inexistente - Nenhuma oportunidade' },
-      { value: '2', label: 'Limitado - Poucas oportunidades' },
-      { value: '3', label: 'Regular - Algumas oportunidades' },
-      { value: '4', label: 'Bom - Várias oportunidades disponíveis' },
-      { value: '5', label: 'Excelente - Muitas oportunidades de crescimento' }
-    ]
-  }
-];
+interface DiagnosticSpec {
+  title: string;
+  area: string;
+  teamSize: string;
+  description: string;
+  painPoints: string;
+  goals: string;
+  urgency: 'baixa' | 'media' | 'alta';
+  timeframe: '30_dias' | '60_dias' | '90_dias';
+}
 
-const Diagnostico = ({ mode = 'page', onComplete }: { mode?: 'page' | 'modal'; onComplete?: () => void }) => {
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [showResult, setShowResult] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+interface DiagnosticoProps {
+  mode?: 'page' | 'modal';
+  onComplete?: () => void;
+}
 
-  const progress = ((currentQuestion + 1) / questions.length) * 100;
-  const isLastQuestion = currentQuestion === questions.length - 1;
-  const canProceed = answers[questions[currentQuestion].id];
+const Diagnostico: React.FC<DiagnosticoProps> = ({ mode = 'page', onComplete }) => {
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
 
-  const handleAnswerChange = (value: string) => {
-    setAnswers(prev => ({
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [spec, setSpec] = useState<DiagnosticSpec>({
+    title: '',
+    area: '',
+    teamSize: '',
+    description: '',
+    painPoints: '',
+    goals: '',
+    urgency: 'media',
+    timeframe: '60_dias',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  const totalSteps = 4;
+
+  const handleChange = (field: keyof DiagnosticSpec, value: string) => {
+    setSpec((prev) => ({
       ...prev,
-      [questions[currentQuestion].id]: value
+      [field]: value,
     }));
   };
 
+  const canGoNext = () => {
+    if (currentStep === 0) {
+      return spec.title.trim().length > 0 && spec.area.trim().length > 0;
+    }
+    if (currentStep === 1) {
+      return spec.painPoints.trim().length > 0 && spec.goals.trim().length > 0;
+    }
+    if (currentStep === 2) {
+      return !!spec.urgency && !!spec.timeframe;
+    }
+    return true;
+  };
+
   const handleNext = () => {
-    if (isLastQuestion) {
-      setShowResult(true);
-      setShowModal(true);
+    if (!canGoNext()) {
+      return;
+    }
+    if (currentStep < totalSteps - 1) {
+      setCurrentStep((prev) => prev + 1);
     } else {
-      setCurrentQuestion(prev => prev + 1);
+      void handleSubmit();
     }
   };
 
   const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(prev => prev - 1);
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
     }
   };
 
-  const calculateScore = () => {
-    const totalScore = Object.values(answers).reduce((sum, value) => sum + parseInt(value), 0);
-    const maxScore = questions.length * 5;
-    return Math.round((totalScore / maxScore) * 100);
+  const handleSubmit = async () => {
+
+    try {
+      setSubmitting(true);
+
+      const payload = {
+        title: spec.title,
+        area: spec.area,
+        teamSize: spec.teamSize,
+        description: spec.description,
+        painPoints: spec.painPoints,
+        goals: spec.goals,
+        urgency: spec.urgency,
+        timeframe: spec.timeframe,
+        userId: user?.id,
+        company: user?.company,
+      };
+
+      const response = await api.post('/api/diagnostics', payload);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const message = (data && data.message) || 'Não foi possível criar o diagnóstico.';
+        throw new Error(message);
+      }
+
+      toast.success('Diagnóstico criado com sucesso a partir das suas especificações!');
+
+      if (mode === 'modal') {
+        if (onComplete) {
+          onComplete();
+        }
+      } else {
+        setIsCompleted(true);
+      }
+    } catch (err: unknown) {
+      console.error('Error submitting diagnostic:', err);
+      const errorObject = err as { message?: string };
+      toast.error(errorObject.message || 'Erro ao salvar diagnóstico.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const getScoreCategory = (score: number) => {
-    if (score >= 80) return { category: 'Excelente', color: 'text-green-600', description: 'Sua empresa está no caminho certo!' };
-    if (score >= 60) return { category: 'Bom', color: 'text-blue-600', description: 'Há espaço para melhorias importantes.' };
-    if (score >= 40) return { category: 'Regular', color: 'text-yellow-600', description: 'Várias áreas precisam de atenção.' };
-    return { category: 'Crítico', color: 'text-red-600', description: 'Ação urgente é necessária.' };
-  };
+  const progress = ((currentStep + 1) / totalSteps) * 100;
 
-  if (showResult) {
-    const score = calculateScore();
-    const scoreInfo = getScoreCategory(score);
+  const renderStep = () => {
+    if (currentStep === 0) {
+      return (
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="title">Nome do diagnóstico</Label>
+            <Textarea
+              id="title"
+              value={spec.title}
+              onChange={(e) => handleChange('title', e.target.value)}
+              placeholder="Ex: Diagnóstico de Clima Organizacional da Equipe de Vendas"
+              className="min-h-[60px]"
+            />
+          </div>
+          <div>
+            <Label htmlFor="area">Área ou setor avaliado</Label>
+            <Textarea
+              id="area"
+              value={spec.area}
+              onChange={(e) => handleChange('area', e.target.value)}
+              placeholder="Ex: Vendas, Marketing, Operações, Empresa inteira"
+              className="min-h-[60px]"
+            />
+          </div>
+          <div>
+            <Label htmlFor="teamSize">Tamanho aproximado da equipe</Label>
+            <Textarea
+              id="teamSize"
+              value={spec.teamSize}
+              onChange={(e) => handleChange('teamSize', e.target.value)}
+              placeholder="Ex: 12 pessoas, 3 líderes e 9 analistas"
+              className="min-h-[60px]"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (currentStep === 1) {
+      return (
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="painPoints">Quais problemas você quer entender?</Label>
+            <Textarea
+              id="painPoints"
+              value={spec.painPoints}
+              onChange={(e) => handleChange('painPoints', e.target.value)}
+              placeholder="Descreva os principais desafios, sintomas ou sinais que você está percebendo."
+              className="min-h-[120px]"
+            />
+          </div>
+          <div>
+            <Label htmlFor="goals">Qual é o objetivo deste diagnóstico?</Label>
+            <Textarea
+              id="goals"
+              value={spec.goals}
+              onChange={(e) => handleChange('goals', e.target.value)}
+              placeholder="Ex: identificar causas de turnover, medir engajamento, mapear conflitos de liderança."
+              className="min-h-[120px]"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (currentStep === 2) {
+      return (
+        <div className="space-y-6">
+          <div>
+            <Label>Qual é o nível de urgência?</Label>
+            <RadioGroup
+              value={spec.urgency}
+              onValueChange={(value) => handleChange('urgency', value as DiagnosticSpec['urgency'])}
+              className="space-y-3 mt-2"
+            >
+              <div className="flex items-center space-x-3 rounded-lg border p-3">
+                <RadioGroupItem value="baixa" id="urgency-baixa" />
+                <Label htmlFor="urgency-baixa" className="flex flex-col">
+                  <span>Baixa</span>
+                  <span className="text-xs text-muted-foreground">
+                    Importante, mas pode ser feito sem pressa.
+                  </span>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3 rounded-lg border p-3">
+                <RadioGroupItem value="media" id="urgency-media" />
+                <Label htmlFor="urgency-media" className="flex flex-col">
+                  <span>Média</span>
+                  <span className="text-xs text-muted-foreground">
+                    Ideal resolver nos próximos meses.
+                  </span>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3 rounded-lg border p-3">
+                <RadioGroupItem value="alta" id="urgency-alta" />
+                <Label htmlFor="urgency-alta" className="flex flex-col">
+                  <span>Alta</span>
+                  <span className="text-xs text-muted-foreground">
+                    Impacto direto em resultados e clima atual.
+                  </span>
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          <div>
+            <Label>Horizonte desejado para ações</Label>
+            <RadioGroup
+              value={spec.timeframe}
+              onValueChange={(value) =>
+                handleChange('timeframe', value as DiagnosticSpec['timeframe'])
+              }
+              className="space-y-3 mt-2"
+            >
+              <div className="flex items-center space-x-3 rounded-lg border p-3">
+                <RadioGroupItem value="30_dias" id="timeframe-30" />
+                <Label htmlFor="timeframe-30" className="flex flex-col">
+                  <span>Próximos 30 dias</span>
+                  <span className="text-xs text-muted-foreground">
+                    Situações que exigem reação rápida.
+                  </span>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3 rounded-lg border p-3">
+                <RadioGroupItem value="60_dias" id="timeframe-60" />
+                <Label htmlFor="timeframe-60" className="flex flex-col">
+                  <span>Próximos 60 dias</span>
+                  <span className="text-xs text-muted-foreground">
+                    Ajustes estruturais de curto e médio prazo.
+                  </span>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3 rounded-lg border p-3">
+                <RadioGroupItem value="90_dias" id="timeframe-90" />
+                <Label htmlFor="timeframe-90" className="flex flex-col">
+                  <span>Próximos 90 dias</span>
+                  <span className="text-xs text-muted-foreground">
+                    Transformações mais profundas e planejadas.
+                  </span>
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <div className={mode === 'page' ? "min-h-screen bg-background" : "bg-background"}>
-        {/* Header removed - using DashboardLayout */}
-        
-        <div className={mode === 'page' ? "container mx-auto px-4 py-8 max-w-4xl" : "space-y-4"}>
-          <Card className={mode === 'page' ? "workchoque-shadow" : "border-0 shadow-none"}>
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center">
-                <CheckCircle className="h-8 w-8 text-accent" />
-              </div>
-              <CardTitle className="text-3xl font-bold">Diagnóstico Concluído!</CardTitle>
-              <CardDescription className="text-lg">
-                Aqui estão os resultados do seu diagnóstico
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-6">
-              {/* Score Display */}
-              <div className="text-center space-y-4">
-                <div className="relative w-32 h-32 mx-auto">
-                  <svg className="w-32 h-32 -rotate-90" viewBox="0 0 36 36">
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeDasharray={`${score}, 100`}
-                      className="text-accent"
-                    />
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="text-muted"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-bold">{score}%</span>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className={`text-2xl font-bold ${scoreInfo.color}`}>
-                    {scoreInfo.category}
-                  </h3>
-                  <p className="text-muted-foreground mt-2">
-                    {scoreInfo.description}
-                  </p>
-                </div>
-              </div>
+      <div className="space-y-4">
+        <div>
+          <Label>Resumo do diagnóstico</Label>
+          <div className="mt-2 p-4 border rounded-lg bg-muted/40 text-sm space-y-2">
+            <p>
+              <span className="font-medium">Nome: </span>
+              {spec.title || 'Não informado'}
+            </p>
+            <p>
+              <span className="font-medium">Área: </span>
+              {spec.area || 'Não informada'}
+            </p>
+            <p>
+              <span className="font-medium">Equipe: </span>
+              {spec.teamSize || 'Não informada'}
+            </p>
+            <p>
+              <span className="font-medium">Problemas principais: </span>
+              {spec.painPoints || 'Não informado'}
+            </p>
+            <p>
+              <span className="font-medium">Objetivos: </span>
+              {spec.goals || 'Não informado'}
+            </p>
+            <p>
+              <span className="font-medium">Urgência: </span>
+              {spec.urgency}
+            </p>
+            <p>
+              <span className="font-medium">Horizonte: </span>
+              {spec.timeframe}
+            </p>
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="description">Observações adicionais</Label>
+          <Textarea
+            id="description"
+            value={spec.description}
+            onChange={(e) => handleChange('description', e.target.value)}
+            placeholder="Inclua qualquer detalhe que ajude a IA a gerar um diagnóstico mais preciso."
+            className="min-h-[120px]"
+          />
+        </div>
+      </div>
+    );
+  };
 
-              {/* Basic Insights */}
-              <div className="bg-muted/50 rounded-lg p-6">
-                <h4 className="font-semibold mb-3">Principais Insights:</h4>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Análise completa das 5 áreas avaliadas</li>
-                  <li>• Identificação de pontos críticos</li>
-                  <li>• Comparação com benchmarks do setor</li>
-                </ul>
-              </div>
+  const wrapperClassName =
+    mode === 'page' ? 'min-h-screen bg-background' : 'bg-background';
 
-              {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" className="flex-1" onClick={onComplete}>
-                  {mode === 'modal' ? 'Concluir' : 'Cadastrar para Ver Relatório Completo'}
-                </Button>
-                <Button variant="outline" size="lg" className="flex-1" onClick={() => {
-                  setShowResult(false);
-                  setCurrentQuestion(0);
-                  setAnswers({});
-                }}>
-                  Fazer Outro Diagnóstico
-                </Button>
-              </div>
+  const containerClassName =
+    mode === 'page'
+      ? 'container mx-auto px-4 py-8 max-w-4xl'
+      : 'px-1 sm:px-2 py-4 sm:py-6 max-w-3xl mx-auto';
 
-              {/* Upgrade Notice */}
-              <div className="border border-accent/20 rounded-lg p-4 bg-accent/5">
-                <h4 className="font-semibold text-accent mb-2">🚀 Desbloqueie o Potencial Completo</h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Cadastre-se gratuitamente para acessar:
+  const showCompletedScreen = mode === 'page' && isCompleted;
+
+  return (
+    <div className={wrapperClassName}>
+      <div className={containerClassName}>
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center text-muted-foreground">
+            <Loader2 className="h-10 w-10 animate-spin mb-4 text-primary" />
+            <p>Carregando novo diagnóstico...</p>
+          </div>
+        ) : error ? (
+          <div className="py-12 flex flex-col items-center justify-center text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Ops! Algo deu errado.</h3>
+            <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
+            <Button onClick={() => window.location.reload()}>Tentar Novamente</Button>
+          </div>
+        ) : showCompletedScreen ? (
+          <Card className="border-0 shadow-none">
+            <CardContent className="py-8 text-center space-y-6">
+              <div className="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="h-10 w-10 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold mb-2">Diagnóstico criado!</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Suas respostas foram registradas com sucesso. Nossa IA está processando os dados
+                  para gerar insights personalizados.
                 </p>
-                <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                  <li>• Relatório detalhado com planos de ação personalizados</li>
-                  <li>• Acompanhamento de progresso</li>
-                  <li>• Sistema de conquistas e gamificação</li>
-                  <li>• Comparação com outras empresas</li>
-                </ul>
+              </div>
+              <div className="pt-4 flex gap-4 justify-center">
+                <Button onClick={() => navigate('/diagnosticos')}>Ver Meus Diagnósticos</Button>
+                <Button variant="outline" onClick={() => navigate('/planos-acao')}>
+                  Ver Planos de Ação
+                </Button>
               </div>
             </CardContent>
           </Card>
-        </div>
-
-        {mode === 'page' && (
-          <Modal
-            isOpen={showModal}
-            onClose={() => setShowModal(false)}
-            type="success"
-            title="Parabéns! Diagnóstico Concluído"
-            message="Você completou com sucesso o diagnóstico do ambiente de trabalho. Cadastre-se para acessar o relatório completo e planos de ação personalizados!"
-          />
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className={mode === 'page' ? "min-h-screen bg-background" : "bg-background h-full"}>
-      {/* Header removed - using DashboardLayout */}
-      
-      <div className={mode === 'page' ? "container mx-auto px-4 py-8 max-w-4xl" : "h-full flex flex-col"}>
-        {/* Progress Header */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold">Diagnóstico do Ambiente de Trabalho</h1>
-            <span className="text-sm text-muted-foreground">
-              {currentQuestion + 1} de {questions.length}
-            </span>
-          </div>
-          <Progress value={progress} className="h-2" />
-        </div>
-
-        {/* Question Card */}
-        <Card className={mode === 'page' ? "workchoque-shadow" : "border-0 shadow-none flex-1"}>
-          <CardHeader>
-            <CardTitle className="text-xl">
-              {questions[currentQuestion].question}
-            </CardTitle>
-            <CardDescription>
-              Selecione a opção que melhor descreve sua situação atual
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="space-y-6">
-            <RadioGroup 
-              value={answers[questions[currentQuestion].id] || ''} 
-              onValueChange={handleAnswerChange}
-            >
-              {questions[currentQuestion].options.map((option) => (
-                <div key={option.value} className="flex items-start space-x-3 p-4 rounded-lg border hover:bg-muted/50 workchoque-transition">
-                  <RadioGroupItem value={option.value} id={option.value} className="mt-0.5" />
-                  <Label htmlFor={option.value} className="flex-1 cursor-pointer">
-                    {option.label}
-                  </Label>
+        ) : (
+          <>
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-2">
+                <div>
+                  <h1 className="text-2xl font-bold">Novo Diagnóstico</h1>
+                  {user?.company && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Empresa: {user.company}
+                    </p>
+                  )}
                 </div>
-              ))}
-            </RadioGroup>
-
-            {/* Navigation Buttons */}
-            <div className="flex justify-between pt-6">
-              <Button 
-                variant="outline" 
-                onClick={handlePrevious}
-                disabled={currentQuestion === 0}
-              >
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                Anterior
-              </Button>
-              
-              <Button 
-                onClick={handleNext}
-                disabled={!canProceed}
-              >
-                {isLastQuestion ? 'Finalizar Diagnóstico' : 'Próxima'}
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
+                <span className="text-sm text-muted-foreground">
+                  Etapa {currentStep + 1} de {totalSteps}
+                </span>
+              </div>
+              <Progress value={progress} className="h-2" />
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Help Text */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            💡 Responda com honestidade para obter um diagnóstico mais preciso
-          </p>
-        </div>
+            <Card className="workchoque-shadow">
+              <CardHeader>
+                <CardTitle className="text-xl md:text-2xl font-semibold leading-relaxed">
+                  Configure seu novo diagnóstico
+                </CardTitle>
+                <CardDescription>
+                  Preencha as informações abaixo para criar um diagnóstico alinhado à sua realidade.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                <div className="pt-2">{renderStep()}</div>
+
+                <div className="flex justify-between pt-6 border-t mt-4">
+                  <Button
+                    variant="ghost"
+                    onClick={handlePrevious}
+                    disabled={currentStep === 0 || submitting}
+                    className="gap-2"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Anterior
+                  </Button>
+
+                  <Button
+                    onClick={handleNext}
+                    disabled={!canGoNext() || submitting}
+                    className="gap-2 min-w-[160px]"
+                  >
+                    {submitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : currentStep === totalSteps - 1 ? (
+                      <>
+                        Finalizar <Save className="h-4 w-4" />
+                      </>
+                    ) : (
+                      <>
+                        Próxima <ChevronRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Responda com honestidade para obter um diagnóstico mais preciso.
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

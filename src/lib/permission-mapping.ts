@@ -377,7 +377,9 @@ export const PERMISSION_MAPPING = {
     
     // Outras páginas existentes...
     '/dashboard': 'dashboard.user.view',
+    '/diagnostico': 'diagnostico.view',
     '/admin-dashboard': 'dashboard.admin.view',
+    '/admin': 'dashboard.admin.view',
     '/master-dashboard': 'dashboard.master.view',
     '/questionarios': 'questionario.view',
     '/meus-questionarios': 'questionario.view',
@@ -386,10 +388,11 @@ export const PERMISSION_MAPPING = {
     '/planos-acao': 'plano.view',
     '/planos-acao/:id': 'plano.view',
     '/planos-conquistas-globais': 'plano.global',
-      '/gamificacao': 'conquista.view',
-      '/conquistas': 'conquista.view',
+    '/gamificacao': 'conquista.view',
+    '/conquistas': 'conquista.view',
     '/conquistas-empresa': 'conquista.manage',
     '/gestao-usuarios': 'user.manage',
+    '/gestao-planos': 'dashboard.admin.view',
     '/respostas-equipe': 'questionario.equipe',
     '/perfis-permissoes': 'permissao.manage',
     '/relatorios': 'relatorio.view',
@@ -428,8 +431,21 @@ type PageProtection = typeof PERMISSION_MAPPING.PAGES;
 
 // Helper para obter permissão de uma página
 export function getPagePermission(path: string): string | null {
-  // Remove parâmetros de rota para fazer o match
-  const normalizedPath = path.replace(/\/\d+/g, '/:id');
+  const normalizedPath = (() => {
+    if (path.startsWith('/planos-acao/')) {
+      return '/planos-acao/:id';
+    }
+    if (path.startsWith('/conteudos/')) {
+      if (path.endsWith('/editar')) {
+        return '/conteudos/:id/editar';
+      }
+      if (path.endsWith('/novo')) {
+        return '/conteudos/novo';
+      }
+      return '/conteudos/:id';
+    }
+    return path;
+  })();
   return PERMISSION_MAPPING.PAGES[normalizedPath as keyof PageProtection] || null;
 }
 

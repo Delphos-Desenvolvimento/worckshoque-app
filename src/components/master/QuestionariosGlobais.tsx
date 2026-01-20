@@ -36,163 +36,309 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
-// Mock data para questionários globais
-const mockQuestionarios = [
-  {
-    id: '1',
-    titulo: 'Questionário de Estresse Organizacional',
-    descricao: 'Avalia o nível de estresse dos colaboradores e identifica fatores de risco',
-    tipo: 'estresse',
-    status: 'ativo',
-    totalPerguntas: 25,
-    empresasUsando: 8,
-    respostasTotais: 1247,
-    dataCriacao: '2024-01-15',
-    ultimaAtualizacao: '2024-01-20',
-    criadoPor: 'Sistema Master'
-  },
-  {
-    id: '2',
-    titulo: 'Clima Organizacional - Q1 2024',
-    descricao: 'Pesquisa de clima organizacional para o primeiro trimestre',
-    tipo: 'clima',
-    status: 'ativo',
-    totalPerguntas: 30,
-    empresasUsando: 12,
-    respostasTotais: 2156,
-    dataCriacao: '2024-01-10',
-    ultimaAtualizacao: '2024-01-18',
-    criadoPor: 'Sistema Master'
-  },
-  {
-    id: '3',
-    titulo: 'Burnout e Sobrecarga de Trabalho',
-    descricao: 'Identifica sinais de burnout e sobrecarga nos colaboradores',
-    tipo: 'burnout',
-    status: 'inativo',
-    totalPerguntas: 20,
-    empresasUsando: 5,
-    respostasTotais: 892,
-    dataCriacao: '2023-12-01',
-    ultimaAtualizacao: '2023-12-15',
-    criadoPor: 'Sistema Master'
-  }
-];
+interface Questionnaire {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  is_active: boolean;
+  questions_count?: number;
+  responses_count?: number;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  questions?: Question[];
+}
 
-const mockPerguntas = [
-  {
-    id: '1',
-    questionarioId: '1',
-    pergunta: 'Como você avalia seu nível de estresse no trabalho?',
-    tipo: 'escala',
-    ordem: 1,
-    opcoes: ['Muito baixo', 'Baixo', 'Médio', 'Alto', 'Muito alto']
-  },
-  {
-    id: '2',
-    questionarioId: '1',
-    pergunta: 'Você se sente sobrecarregado com suas responsabilidades?',
-    tipo: 'multipla_escolha',
-    ordem: 2,
-    opcoes: ['Nunca', 'Raramente', 'Às vezes', 'Frequentemente', 'Sempre']
-  }
-];
+interface Question {
+  id: string;
+  question: string;
+  type: string;
+  order: number;
+  options?: QuestionOption[];
+}
 
-const mockEstatisticas = {
-  totalQuestionarios: 3,
-  questionariosAtivos: 2,
-  totalPerguntas: 75,
-  mediaRespostasPorQuestionario: 1431.7,
-  crescimentoMensal: 8.5
-};
+interface QuestionOption {
+  value: string;
+  label: string;
+  score?: number;
+}
+
+interface Statistics {
+  totalQuestionarios: number;
+  questionariosAtivos: number;
+  totalPerguntas: number;
+  mediaRespostasPorQuestionario: number;
+  crescimentoMensal: number;
+}
 
 export default function QuestionariosGlobais() {
   const { hasPermission } = usePermissions();
-  const [questionarios, setQuestionarios] = useState(mockQuestionarios);
-  const [perguntas, setPerguntas] = useState(mockPerguntas);
+  const [questionarios, setQuestionarios] = useState<Questionnaire[]>([]);
+  const [estatisticas, setEstatisticas] = useState<Statistics>({
+    totalQuestionarios: 0,
+    questionariosAtivos: 0,
+    totalPerguntas: 0,
+    mediaRespostasPorQuestionario: 0,
+    crescimentoMensal: 0
+  });
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterTipo, setFilterTipo] = useState('todos');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPerguntasDialogOpen, setIsPerguntasDialogOpen] = useState(false);
-  const [selectedQuestionario, setSelectedQuestionario] = useState(null);
-  const [editingQuestionario, setEditingQuestionario] = useState(null);
+  const [selectedQuestionario, setSelectedQuestionario] = useState<Questionnaire | null>(null);
+  const [editingQuestionario, setEditingQuestionario] = useState<Questionnaire | null>(null);
 
   // Estados para formulários
   const [formData, setFormData] = useState({
-    titulo: '',
-    descricao: '',
-    tipo: '',
-    status: 'ativo'
+    title: '',
+    description: '',
+    type: '',
+    is_active: true
   });
 
-  const [perguntaForm, setPerguntaForm] = useState({
-    pergunta: '',
-    tipo: 'escala',
-    ordem: 1,
-    opcoes: []
-  });
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [questionariosRes, statsRes] = await Promise.all([
+        api.get('/questionnaires'),
+        api.get('/questionnaires/statistics')
+      ]);
 
-  const handleCreateQuestionario = () => {
-    const newQuestionario = {
-      id: Date.now().toString(),
-      ...formData,
-      totalPerguntas: 0,
-      empresasUsando: 0,
-      respostasTotais: 0,
-      dataCriacao: new Date().toISOString().split('T')[0],
-      ultimaAtualizacao: new Date().toISOString().split('T')[0],
-      criadoPor: 'Sistema Master'
-    };
-    setQuestionarios([...questionarios, newQuestionario]);
-    setFormData({ titulo: '', descricao: '', tipo: '', status: 'ativo' });
-    setIsCreateDialogOpen(false);
+      const questionariosData = await questionariosRes.json();
+      const statsData = await statsRes.json();
+
+      if (questionariosData) {
+        setQuestionarios(questionariosData.map((q: Questionnaire & { questions?: unknown[]; _count?: { responses: number } }) => ({
+          ...q,
+          questions_count: q.questions?.length || 0,
+          responses_count: q._count?.responses || 0
+        })));
+      }
+
+      if (statsData) {
+        setEstatisticas(statsData);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar questionários');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditQuestionario = (questionario) => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+
+  const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+
+  const [perguntaForm, setPerguntaForm] = useState({
+    question: '',
+    type: 'escala',
+    order: 1,
+    options: [] as QuestionOption[]
+  });
+
+  const handleCreateQuestionario = async () => {
+    try {
+      await api.post('/questionnaires', {
+        ...formData,
+        questions: []
+      });
+      toast.success('Questionário criado com sucesso');
+      setIsCreateDialogOpen(false);
+      setFormData({ title: '', description: '', type: '', is_active: true });
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao criar questionário:', error);
+      toast.error('Erro ao criar questionário');
+    }
+  };
+
+  const handleEditQuestionario = (questionario: Questionnaire) => {
     setEditingQuestionario(questionario);
     setFormData({
-      titulo: questionario.titulo,
-      descricao: questionario.descricao,
-      tipo: questionario.tipo,
-      status: questionario.status
+      title: questionario.title,
+      description: questionario.description,
+      type: questionario.type,
+      is_active: questionario.is_active
     });
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdateQuestionario = () => {
-    const updatedQuestionarios = questionarios.map(q => 
-      q.id === editingQuestionario.id 
-        ? { ...q, ...formData, ultimaAtualizacao: new Date().toISOString().split('T')[0] }
-        : q
-    );
-    setQuestionarios(updatedQuestionarios);
-    setEditingQuestionario(null);
-    setIsEditDialogOpen(false);
+  const handleUpdateQuestionario = async () => {
+    if (!editingQuestionario) return;
+
+    try {
+      await api.put(`/questionnaires/${editingQuestionario.id}`, formData);
+      toast.success('Questionário atualizado com sucesso');
+      setIsEditDialogOpen(false);
+      setEditingQuestionario(null);
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao atualizar questionário:', error);
+      toast.error('Erro ao atualizar questionário');
+    }
   };
 
-  const handleDeleteQuestionario = (questionarioId) => {
-    setQuestionarios(questionarios.filter(q => q.id !== questionarioId));
+  const handleDeleteQuestionario = async (questionarioId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este questionário?')) return;
+
+    try {
+      await api.delete(`/questionnaires/${questionarioId}`);
+      toast.success('Questionário excluído com sucesso');
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao excluir questionário:', error);
+      toast.error('Erro ao excluir questionário');
+    }
   };
 
-  const handleViewPerguntas = (questionario) => {
-    setSelectedQuestionario(questionario);
-    setIsPerguntasDialogOpen(true);
+  const handleViewPerguntas = async (questionario: Questionnaire) => {
+    try {
+      // Fetch detailed questionnaire with questions
+      const res = await api.get(`/questionnaires/${questionario.id}`);
+      const data = await res.json();
+      if (data) {
+        setSelectedQuestionario(data);
+        setIsPerguntasDialogOpen(true);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar detalhes:', error);
+      toast.error('Erro ao carregar detalhes do questionário');
+    }
+  };
+
+  const handleAddQuestion = () => {
+    const nextOrder = (selectedQuestionario?.questions?.length || 0) + 1;
+    setPerguntaForm({
+      question: '',
+      type: 'escala',
+      order: nextOrder,
+      options: []
+    });
+    setEditingQuestion(null);
+    setIsQuestionDialogOpen(true);
+  };
+
+  const handleEditQuestion = (question: Question) => {
+    setEditingQuestion(question);
+    setPerguntaForm({
+      question: question.question,
+      type: question.type,
+      order: question.order,
+      options: question.options || []
+    });
+    setIsQuestionDialogOpen(true);
+  };
+
+  const handleSaveQuestion = async () => {
+    if (!selectedQuestionario) return;
+
+    try {
+      const updatedQuestions = [...(selectedQuestionario.questions || [])];
+      
+      if (editingQuestion) {
+        // Update existing question
+        const index = updatedQuestions.findIndex(q => q.id === editingQuestion.id);
+        if (index !== -1) {
+          updatedQuestions[index] = {
+            ...editingQuestion,
+            ...perguntaForm
+          };
+        }
+      } else {
+        // Add new question
+        updatedQuestions.push({
+          id: `temp-${Date.now()}`, // Temporary ID until saved
+          ...perguntaForm
+        });
+      }
+
+      // Sort by order
+      updatedQuestions.sort((a, b) => a.order - b.order);
+
+      // Save to backend
+      await api.put(`/questionnaires/${selectedQuestionario.id}`, {
+        title: selectedQuestionario.title,
+        description: selectedQuestionario.description,
+        type: selectedQuestionario.type,
+        is_active: selectedQuestionario.is_active,
+        questions: updatedQuestions
+      });
+
+      toast.success(editingQuestion ? 'Pergunta atualizada' : 'Pergunta adicionada');
+      setIsQuestionDialogOpen(false);
+      
+      // Refresh data
+      const res = await api.get(`/questionnaires/${selectedQuestionario.id}`);
+      const data = await res.json();
+      if (data) {
+        setSelectedQuestionario(data);
+      }
+      fetchData(); // Refresh list stats
+    } catch (error) {
+      console.error('Erro ao salvar pergunta:', error);
+      toast.error('Erro ao salvar pergunta');
+    }
+  };
+
+  const handleDeleteQuestion = async (questionId: string) => {
+    if (!selectedQuestionario || !confirm('Tem certeza que deseja excluir esta pergunta?')) return;
+
+    try {
+      const updatedQuestions = selectedQuestionario.questions?.filter(q => q.id !== questionId) || [];
+      
+      // Reorder remaining questions
+      const reorderedQuestions = updatedQuestions.map((q, index) => ({
+        ...q,
+        order: index + 1
+      }));
+
+      await api.put(`/questionnaires/${selectedQuestionario.id}`, {
+        title: selectedQuestionario.title,
+        description: selectedQuestionario.description,
+        type: selectedQuestionario.type,
+        is_active: selectedQuestionario.is_active,
+        questions: reorderedQuestions
+      });
+
+      toast.success('Pergunta excluída');
+      
+      // Refresh data
+      const res = await api.get(`/questionnaires/${selectedQuestionario.id}`);
+      const data = await res.json();
+      if (data) {
+        setSelectedQuestionario(data);
+      }
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao excluir pergunta:', error);
+      toast.error('Erro ao excluir pergunta');
+    }
   };
 
   const filteredQuestionarios = questionarios.filter(questionario => {
-    const matchesSearch = questionario.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         questionario.descricao.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'todos' || questionario.status === filterStatus;
-    const matchesTipo = filterTipo === 'todos' || questionario.tipo === filterTipo;
+    const matchesSearch = questionario.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         questionario.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'todos' || 
+      (filterStatus === 'ativo' ? questionario.is_active : !questionario.is_active);
+    const matchesTipo = filterTipo === 'todos' || questionario.type === filterTipo;
     
     return matchesSearch && matchesStatus && matchesTipo;
   });
 
-  const getTipoBadge = (tipo) => {
-    const tipos = {
+  const getTipoBadge = (tipo: string) => {
+    const tipos: Record<string, { label: string; color: string }> = {
       estresse: { label: 'Estresse', color: 'bg-red-100 text-red-800' },
       clima: { label: 'Clima', color: 'bg-blue-100 text-blue-800' },
       burnout: { label: 'Burnout', color: 'bg-orange-100 text-orange-800' }
@@ -201,13 +347,10 @@ export default function QuestionariosGlobais() {
     return <Badge className={tipoInfo.color}>{tipoInfo.label}</Badge>;
   };
 
-  const getStatusBadge = (status) => {
-    const statuses = {
-      ativo: { label: 'Ativo', color: 'bg-green-100 text-green-800' },
-      inativo: { label: 'Inativo', color: 'bg-gray-100 text-gray-800' }
-    };
-    const statusInfo = statuses[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
-    return <Badge className={statusInfo.color}>{statusInfo.label}</Badge>;
+  const getStatusBadge = (isActive: boolean) => {
+    return isActive 
+      ? <Badge className="bg-green-100 text-green-800">Ativo</Badge>
+      : <Badge className="bg-gray-100 text-gray-800">Inativo</Badge>;
   };
 
   return (
@@ -236,7 +379,7 @@ export default function QuestionariosGlobais() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockEstatisticas.totalQuestionarios}</div>
+            <div className="text-2xl font-bold">{estatisticas.totalQuestionarios}</div>
             <p className="text-xs text-muted-foreground">Questionários</p>
           </CardContent>
         </Card>
@@ -247,7 +390,7 @@ export default function QuestionariosGlobais() {
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockEstatisticas.questionariosAtivos}</div>
+            <div className="text-2xl font-bold">{estatisticas.questionariosAtivos}</div>
             <p className="text-xs text-muted-foreground">Em uso</p>
           </CardContent>
         </Card>
@@ -258,7 +401,7 @@ export default function QuestionariosGlobais() {
             <HelpCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockEstatisticas.totalPerguntas}</div>
+            <div className="text-2xl font-bold">{estatisticas.totalPerguntas}</div>
             <p className="text-xs text-muted-foreground">Total</p>
           </CardContent>
         </Card>
@@ -269,7 +412,7 @@ export default function QuestionariosGlobais() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{Math.round(mockEstatisticas.mediaRespostasPorQuestionario)}</div>
+            <div className="text-2xl font-bold">{Math.round(estatisticas.mediaRespostasPorQuestionario)}</div>
             <p className="text-xs text-muted-foreground">Média por questionário</p>
           </CardContent>
         </Card>
@@ -280,7 +423,7 @@ export default function QuestionariosGlobais() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{mockEstatisticas.crescimentoMensal}%</div>
+            <div className="text-2xl font-bold">+{estatisticas.crescimentoMensal}%</div>
             <p className="text-xs text-muted-foreground">Este mês</p>
           </CardContent>
         </Card>
@@ -342,7 +485,6 @@ export default function QuestionariosGlobais() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Perguntas</TableHead>
-                <TableHead>Empresas</TableHead>
                 <TableHead>Respostas</TableHead>
                 <TableHead>Última Atualização</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -353,18 +495,17 @@ export default function QuestionariosGlobais() {
                 <TableRow key={questionario.id}>
                   <TableCell>
                     <div>
-                      <div className="font-medium">{questionario.titulo}</div>
-                      <div className="text-sm text-gray-500">{questionario.descricao}</div>
+                      <div className="font-medium">{questionario.title}</div>
+                      <div className="text-sm text-gray-500">{questionario.description}</div>
                     </div>
                   </TableCell>
-                  <TableCell>{getTipoBadge(questionario.tipo)}</TableCell>
-                  <TableCell>{getStatusBadge(questionario.status)}</TableCell>
+                  <TableCell>{getTipoBadge(questionario.type)}</TableCell>
+                  <TableCell>{getStatusBadge(questionario.is_active)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{questionario.totalPerguntas} perguntas</Badge>
+                    <Badge variant="outline">{questionario.questions_count} perguntas</Badge>
                   </TableCell>
-                  <TableCell>{questionario.empresasUsando}</TableCell>
-                  <TableCell>{questionario.respostasTotais.toLocaleString()}</TableCell>
-                  <TableCell>{questionario.ultimaAtualizacao}</TableCell>
+                  <TableCell>{questionario.responses_count}</TableCell>
+                  <TableCell>{new Date(questionario.updated_at).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
                       {hasPermission('questionario.view') && (
@@ -407,28 +548,28 @@ export default function QuestionariosGlobais() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="titulo">Título</Label>
+              <Label htmlFor="title">Título</Label>
               <Input
-                id="titulo"
-                value={formData.titulo}
-                onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="Digite o título do questionário"
               />
             </div>
             <div>
-              <Label htmlFor="descricao">Descrição</Label>
+              <Label htmlFor="description">Descrição</Label>
               <Textarea
-                id="descricao"
-                value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Descreva o objetivo do questionário"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="tipo">Tipo</Label>
-                <Select value={formData.tipo} onValueChange={(value) => setFormData({ ...formData, tipo: value })}>
+                <Label htmlFor="type">Tipo</Label>
+                <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
@@ -441,7 +582,10 @@ export default function QuestionariosGlobais() {
               </div>
               <div>
                 <Label htmlFor="status">Status</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                <Select 
+                  value={formData.is_active ? 'ativo' : 'inativo'} 
+                  onValueChange={(value) => setFormData({ ...formData, is_active: value === 'ativo' })}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
@@ -476,28 +620,28 @@ export default function QuestionariosGlobais() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="edit-titulo">Título</Label>
+              <Label htmlFor="edit-title">Título</Label>
               <Input
-                id="edit-titulo"
-                value={formData.titulo}
-                onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                id="edit-title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="Digite o título do questionário"
               />
             </div>
             <div>
-              <Label htmlFor="edit-descricao">Descrição</Label>
+              <Label htmlFor="edit-description">Descrição</Label>
               <Textarea
-                id="edit-descricao"
-                value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Descreva o objetivo do questionário"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-tipo">Tipo</Label>
-                <Select value={formData.tipo} onValueChange={(value) => setFormData({ ...formData, tipo: value })}>
+                <Label htmlFor="edit-type">Tipo</Label>
+                <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
@@ -510,7 +654,10 @@ export default function QuestionariosGlobais() {
               </div>
               <div>
                 <Label htmlFor="edit-status">Status</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                <Select 
+                  value={formData.is_active ? 'ativo' : 'inativo'} 
+                  onValueChange={(value) => setFormData({ ...formData, is_active: value === 'ativo' })}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
@@ -540,14 +687,14 @@ export default function QuestionariosGlobais() {
           <DialogHeader>
             <DialogTitle>Perguntas do Questionário</DialogTitle>
             <DialogDescription>
-              {selectedQuestionario?.titulo} - {selectedQuestionario?.totalPerguntas} perguntas
+              {selectedQuestionario?.title} - {selectedQuestionario?.questions_count} perguntas
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-medium">Lista de Perguntas</h3>
               {hasPermission('questionario.edit') && (
-                <Button size="sm">
+                <Button size="sm" onClick={handleAddQuestion}>
                   <Plus className="w-4 h-4 mr-2" />
                   Adicionar Pergunta
                 </Button>
@@ -564,25 +711,25 @@ export default function QuestionariosGlobais() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {perguntas.filter(p => p.questionarioId === selectedQuestionario?.id).map((pergunta) => (
+                {selectedQuestionario?.questions?.map((pergunta) => (
                   <TableRow key={pergunta.id}>
-                    <TableCell>{pergunta.ordem}</TableCell>
-                    <TableCell>{pergunta.pergunta}</TableCell>
+                    <TableCell>{pergunta.order}</TableCell>
+                    <TableCell>{pergunta.question}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {pergunta.tipo === 'escala' ? 'Escala' : 'Múltipla Escolha'}
+                        {pergunta.type === 'escala' ? 'Escala' : 'Múltipla Escolha'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{pergunta.opcoes.length} opções</TableCell>
+                    <TableCell>{pergunta.options?.length || 0} opções</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
                         {hasPermission('questionario.edit') && (
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => handleEditQuestion(pergunta)}>
                             <Edit className="w-4 h-4" />
                           </Button>
                         )}
                         {hasPermission('questionario.delete') && (
-                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteQuestion(pergunta.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
@@ -596,6 +743,109 @@ export default function QuestionariosGlobais() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPerguntasDialogOpen(false)}>
               Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para Adicionar/Editar Pergunta */}
+      <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingQuestion ? 'Editar Pergunta' : 'Nova Pergunta'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Pergunta</Label>
+              <Input
+                value={perguntaForm.question}
+                onChange={(e) => setPerguntaForm({ ...perguntaForm, question: e.target.value })}
+                placeholder="Digite a pergunta"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Tipo</Label>
+                <Select 
+                  value={perguntaForm.type} 
+                  onValueChange={(value) => setPerguntaForm({ ...perguntaForm, type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="escala">Escala (1-5)</SelectItem>
+                    <SelectItem value="multipla_escolha">Múltipla Escolha</SelectItem>
+                    <SelectItem value="texto">Texto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Ordem</Label>
+                <Input
+                  type="number"
+                  value={perguntaForm.order}
+                  onChange={(e) => setPerguntaForm({ ...perguntaForm, order: parseInt(e.target.value) || 1 })}
+                />
+              </div>
+            </div>
+            
+            {perguntaForm.type === 'multipla_escolha' && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label>Opções</Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setPerguntaForm({
+                      ...perguntaForm,
+                      options: [
+                        ...perguntaForm.options,
+                        { value: '', label: '', score: 0 }
+                      ]
+                    })}
+                  >
+                    Adicionar Opção
+                  </Button>
+                </div>
+                {perguntaForm.options.map((option, index) => (
+                  <div key={index} className="flex gap-2 items-center">
+                    <Input
+                      placeholder="Opção"
+                      value={option.label}
+                      onChange={(e) => {
+                        const newOptions = [...perguntaForm.options];
+                        newOptions[index] = { 
+                          ...option, 
+                          label: e.target.value,
+                          value: e.target.value.toLowerCase().replace(/\s+/g, '_')
+                        };
+                        setPerguntaForm({ ...perguntaForm, options: newOptions });
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const newOptions = perguntaForm.options.filter((_, i) => i !== index);
+                        setPerguntaForm({ ...perguntaForm, options: newOptions });
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsQuestionDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveQuestion}>
+              Salvar
             </Button>
           </DialogFooter>
         </DialogContent>

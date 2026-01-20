@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +48,13 @@ interface ApiUser {
   created_at: string;
   updated_at: string;
   permissions: string[];
+  profile?: {
+    department: string | null;
+    position: string | null;
+  };
+  company?: {
+    name: string;
+  };
 }
 
 // Interface para usuário formatado para o componente
@@ -64,75 +71,6 @@ interface FormattedUser {
   created_at: string;
 }
 
-// Gerar dados mockados mais realistas para demonstrar paginação
-const generateMockUsers = () => {
-  const names = [
-    'João Silva', 'Maria Santos', 'Pedro Oliveira', 'Ana Costa', 'Carlos Lima',
-    'Fernanda Souza', 'Ricardo Alves', 'Juliana Pereira', 'Roberto Ferreira', 'Camila Rodrigues',
-    'Eduardo Martins', 'Patrícia Gomes', 'Felipe Barbosa', 'Luciana Araújo', 'Marcos Ribeiro',
-    'Gabriela Cardoso', 'Thiago Nascimento', 'Renata Silva', 'Diego Santos', 'Vanessa Lima',
-    'Bruno Costa', 'Priscila Almeida', 'Gustavo Rocha', 'Tatiana Moreira', 'André Vieira',
-    'Cristina Dias', 'Leonardo Pinto', 'Mônica Carvalho', 'Rodrigo Teixeira', 'Simone Reis',
-    'Fábio Machado', 'Elaine Nunes', 'Vinicius Campos', 'Denise Correia', 'Márcio Freitas'
-  ];
-  
-  const cargos = [
-    'Analista de Sistemas', 'Gerente de Projetos', 'Designer UX', 'Desenvolvedor Frontend',
-    'Desenvolvedor Backend', 'Product Owner', 'Scrum Master', 'Analista de Negócios',
-    'Arquiteto de Software', 'DevOps Engineer', 'QA Tester', 'UI Designer',
-    'Gerente de TI', 'Coordenador de Projetos', 'Especialista em Dados'
-  ];
-  
-  const departamentos = ['TI', 'Design', 'Gestão', 'Desenvolvimento', 'Qualidade', 'Produto', 'Dados'];
-  const statuses = ['Ativo', 'Inativo'];
-  
-  return names.map((name, index) => ({
-    id: (index + 1).toString(),
-    name,
-    email: `${name.toLowerCase().replace(/\s+/g, '.')}.${Math.floor(Math.random() * 100)}@empresa.com`,
-    cargo: cargos[Math.floor(Math.random() * cargos.length)],
-    departamento: departamentos[Math.floor(Math.random() * departamentos.length)],
-    status: statuses[Math.floor(Math.random() * statuses.length)],
-    ultimoLogin: new Date(2024, 0, Math.floor(Math.random() * 30) + 1).toISOString().split('T')[0],
-    diagnosticos: Math.floor(Math.random() * 15) + 1,
-    planosAtivos: Math.floor(Math.random() * 5) + 1
-  }));
-};
-
-const mockUsuarios = generateMockUsers();
-
-// Função para mapear dados da API para o formato do componente
-const mapApiUserToFormattedUser = (apiUser: ApiUser): FormattedUser => {
-  // Mapear role para cargo em português
-  const roleMapping = {
-    'master': 'Master',
-    'admin': 'Administrador',
-    'user': 'Usuário'
-  };
-
-  // Mapear departamento baseado no role (pode ser expandido futuramente)
-  const departmentMapping = {
-    'master': 'Plataforma',
-    'admin': 'Gestão',
-    'user': 'Operacional'
-  };
-
-  return {
-    id: apiUser.id,
-    name: apiUser.name,
-    email: apiUser.email,
-    cargo: roleMapping[apiUser.role],
-    departamento: departmentMapping[apiUser.role],
-    status: apiUser.is_active ? 'Ativo' : 'Inativo',
-    ultimoLogin: apiUser.last_login ? 
-      new Date(apiUser.last_login).toISOString().split('T')[0] : 
-      'Nunca logou',
-    role: apiUser.role,
-    permissions: apiUser.permissions,
-    created_at: apiUser.created_at
-  };
-};
-
 export default function GestaoUsuarios() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("todos");
@@ -141,6 +79,7 @@ export default function GestaoUsuarios() {
   // Estados de paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
 
   // Estados para dados reais
   const [usuarios, setUsuarios] = useState<FormattedUser[]>([]);
@@ -149,7 +88,7 @@ export default function GestaoUsuarios() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Função para buscar usuários da API
-  const fetchUsuarios = async (showRefreshLoader = false) => {
+  const fetchUsuarios = useCallback(async (showRefreshLoader = false) => {
     try {
       if (showRefreshLoader) {
         setRefreshing(true);
@@ -158,7 +97,26 @@ export default function GestaoUsuarios() {
       }
       setError(null);
 
-      const response = await api.get('/auth/users');
+      const queryParams = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: itemsPerPage.toString(),
+      });
+
+      if (searchTerm) {
+        queryParams.append('search', searchTerm);
+      }
+
+      if (filter !== 'todos') {
+        if (['master', 'admin', 'user'].includes(filter)) {
+          queryParams.append('role', filter);
+        } else if (filter === 'ativo') {
+          queryParams.append('status', 'active');
+        } else if (filter === 'inativo') {
+          queryParams.append('status', 'inactive');
+        }
+      }
+
+      const response = await api.get(`/auth/users?${queryParams.toString()}`);
       
       if (!response.ok) {
         if (response.status === 0 || response.status >= 500) {
@@ -173,16 +131,22 @@ export default function GestaoUsuarios() {
         throw new Error('Resposta do servidor não é JSON válido - verifique se o backend está rodando');
       }
 
-      const apiUsers: ApiUser[] = await response.json();
+      const data = await response.json();
       
+      // Suporte para ambos os formatos (antigo array direto ou novo com meta)
+      const apiUsers: ApiUser[] = Array.isArray(data) ? data : (data.data || []);
+      const total = Array.isArray(data) ? data.length : (data.meta?.total || 0);
+      
+      setTotalItems(total);
+
       const formattedUsers: FormattedUser[] = apiUsers.map(user => ({
         id: user.id,
         name: user.name,
         email: user.email,
-        cargo: user.role === 'master' ? 'Master' : user.role === 'admin' ? 'Administrador' : 'Usuário',
-        departamento: user.company_id ? 'Empresa' : 'Geral',
+        cargo: user.profile?.position || (user.role === 'master' ? 'Master' : user.role === 'admin' ? 'Administrador' : 'Usuário'),
+        departamento: user.profile?.department || (user.company?.name || (user.company_id ? 'Empresa' : 'Geral')),
         status: user.is_active ? 'Ativo' : 'Inativo',
-        ultimoLogin: user.last_login ? new Date(user.last_login).toLocaleDateString('pt-BR') : 'Nunca',
+        ultimoLogin: user.last_login ? new Date(user.last_login).toLocaleDateString('pt-BR') : 'Nunca logou',
         role: user.role,
         permissions: user.permissions || [],
         created_at: user.created_at
@@ -202,35 +166,25 @@ export default function GestaoUsuarios() {
       }
       // Não usar dados mockados em caso de erro para forçar o uso da API real
       setUsuarios([]);
+      setTotalItems(0);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [currentPage, itemsPerPage, searchTerm, filter]);
 
   useEffect(() => {
-    fetchUsuarios();
-  }, []);
+    // Debounce para evitar muitas chamadas na busca
+    const timeoutId = setTimeout(() => {
+      fetchUsuarios();
+    }, 300);
 
-  // Filtrar usuários (usar dados reais ao invés de mockados)
-  const filteredUsuarios = usuarios.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filter === "todos" || 
-                         (filter === "ativo" && user.status === "Ativo") ||
-                         (filter === "inativo" && user.status === "Inativo") ||
-                         (filter === "master" && user.role === "master") ||
-                         (filter === "admin" && user.role === "admin") ||
-                         (filter === "user" && user.role === "user");
-    return matchesSearch && matchesFilter;
-  });
+    return () => clearTimeout(timeoutId);
+  }, [fetchUsuarios]);
 
-  // Calcular paginação
-  const totalItems = filteredUsuarios.length;
+  // Calcular paginação (simplificado para server-side)
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedUsuarios = filteredUsuarios.slice(startIndex, endIndex);
+  const paginatedUsuarios = usuarios; // Na paginação server-side, o array já é a página atual
 
   // Handlers de paginação
   const handlePageChange = (page: number) => {

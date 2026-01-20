@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,46 +19,129 @@ import {
 } from 'lucide-react';
 import AchievementBadge from '@/components/common/AchievementBadge';
 import PageHeader from '@/components/common/PageHeader';
+import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
-const mockAdminUser = {
-  name: 'Maria Silva',
-  role: 'admin' as const,
-  company: 'TechCorp'
-};
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  level: 'bronze' | 'silver' | 'gold' | 'diamond' | 'crown';
+  rarity: string;
+  unlocked: boolean;
+  unlockedAt?: Date;
+}
 
-const companyAchievements = [
-  {
-    id: '1',
-    title: '100 Diagnósticos',
-    description: 'Equipe realizou 100 diagnósticos',
-    icon: 'trophy',
-    level: 'gold' as const,
-    unlocked: true,
-    unlockedAt: new Date('2024-02-15')
-  },
-  {
-    id: '2',
-    title: '50 Colaboradores',
-    description: '50 colaboradores cadastrados',
-    icon: 'crown',
-    level: 'diamond' as const,
-    unlocked: false,
-    progress: 32,
-    maxProgress: 50
-  }
-];
+interface RawAchievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  level: string;
+  rarity: string;
+  unlocked: boolean;
+  unlockedAt?: string;
+}
+
+interface AdminDashboardStats {
+  users: { total: number; active: number };
+  diagnostics: { total: number; completed: number };
+  actionPlans: { total: number };
+  goals: { total: number; completed: number };
+  achievements: { totalUnlocked: number; latest: Achievement[] };
+  recentActivity: { id: string; user: string; action: string; date: string; details?: string }[];
+  topPerformers?: { id: string; name: string; diagnosticsCount: number }[];
+  teamProgress?: { name: string; progress: number }[];
+}
 
 const AdminDashboard = () => {
+  const { user } = useAuthStore();
+  const [stats, setStats] = useState<AdminDashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const res = await api.get('/reports/overview');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.achievements?.latest) {
+             data.achievements.latest = data.achievements.latest.map((a: RawAchievement) => ({
+               ...a,
+               unlockedAt: a.unlockedAt ? new Date(a.unlockedAt) : undefined
+             }));
+           }
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dashboard:', error);
+        toast.error('Erro ao carregar informações do dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const displayStats = stats ? {
+    colaboradores: stats.users.total,
+    diagnosticos: stats.diagnostics.total,
+    engajamento: stats.users.total > 0 
+      ? Math.round((stats.users.active / stats.users.total) * 100) 
+      : 0,
+    activePlans: stats.actionPlans.total,
+    completedGoals: stats.goals.completed,
+    achievements: stats.achievements?.totalUnlocked || 0,
+    latestAchievements: stats.achievements?.latest || [],
+    recentActivity: stats.recentActivity || [],
+    topPerformers: stats.topPerformers || [],
+    teamProgress: {
+      diagnostics: {
+        current: stats.diagnostics.completed,
+        total: stats.users.total, // Assuming 1 diagnostic per user as a target
+        percentage: stats.users.total > 0 ? Math.round((stats.diagnostics.completed / stats.users.total) * 100) : 0
+      },
+      plans: {
+        current: stats.goals.completed,
+        total: stats.goals.total,
+        percentage: stats.goals.total > 0 ? Math.round((stats.goals.completed / stats.goals.total) * 100) : 0
+      },
+      engagement: {
+        current: stats.users.active,
+        total: stats.users.total,
+        percentage: stats.users.total > 0 ? Math.round((stats.users.active / stats.users.total) * 100) : 0
+      }
+    }
+  } : {
+    colaboradores: 0,
+    diagnosticos: 0,
+    engajamento: 0,
+    activePlans: 0,
+    completedGoals: 0,
+    achievements: 0,
+    latestAchievements: [],
+    recentActivity: [],
+    topPerformers: [],
+    teamProgress: {
+      diagnostics: { current: 0, total: 0, percentage: 0 },
+      plans: { current: 0, total: 0, percentage: 0 },
+      engagement: { current: 0, total: 0, percentage: 0 }
+    }
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader
-        title={`Dashboard Administrativo - ${mockAdminUser.company}`}
+        title={`Dashboard Administrativo - ${user?.company || 'Minha Empresa'}`}
         description="Gerencie sua empresa e acompanhe o progresso da equipe"
         icon={Building}
         badges={[
-          { label: "32 colaboradores", icon: Users },
-          { label: "156 diagnósticos", icon: FileText },
-          { label: "88% engajamento", icon: TrendingUp }
+          { label: `${displayStats.colaboradores} colaboradores`, icon: Users },
+          { label: `${displayStats.diagnosticos} diagnósticos`, icon: FileText },
+          { label: `${displayStats.engajamento}% engajamento`, icon: TrendingUp }
         ]}
         actions={[
           { 
@@ -70,7 +153,7 @@ const AdminDashboard = () => {
         ]}
       />
 
-      <div className="container mx-auto px-4">{/* Removido py-8 */}
+      <div className="container mx-auto px-4">
 
         {/* Company Stats */}
         <div className="grid md:grid-cols-5 gap-6 mb-8">
@@ -80,9 +163,9 @@ const AdminDashboard = () => {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">32</div>
+              <div className="text-2xl font-bold">{displayStats.colaboradores}</div>
               <p className="text-xs text-muted-foreground">
-                +3 este mês
+                Total cadastrado
               </p>
             </CardContent>
           </Card>
@@ -93,9 +176,9 @@ const AdminDashboard = () => {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">156</div>
+              <div className="text-2xl font-bold">{displayStats.diagnosticos}</div>
               <p className="text-xs text-muted-foreground">
-                +12 esta semana
+                Realizados
               </p>
             </CardContent>
           </Card>
@@ -106,9 +189,9 @@ const AdminDashboard = () => {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8</div>
+              <div className="text-2xl font-bold">{displayStats.activePlans}</div>
               <p className="text-xs text-muted-foreground">
-                3 concluídos este mês
+                Em andamento
               </p>
             </CardContent>
           </Card>
@@ -119,7 +202,7 @@ const AdminDashboard = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">78%</div>
+              <div className="text-2xl font-bold">{displayStats.engajamento}%</div>
               <p className="text-xs text-muted-foreground">
                 usuários ativos
               </p>
@@ -132,7 +215,7 @@ const AdminDashboard = () => {
               <Award className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">5</div>
+              <div className="text-2xl font-bold">{displayStats.achievements}</div>
               <p className="text-xs text-muted-foreground">
                 desbloqueadas
               </p>
@@ -163,38 +246,22 @@ const AdminDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <UserCheck className="h-8 w-8 text-green-500" />
-                    <div>
-                      <h4 className="font-medium">João Silva</h4>
-                      <p className="text-sm text-muted-foreground">Completou diagnóstico de Clima</p>
+                {displayStats.recentActivity.length > 0 ? (
+                  displayStats.recentActivity.map((activity) => (
+                    <div key={activity.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <UserCheck className="h-8 w-8 text-green-500" />
+                        <div>
+                          <h4 className="font-medium">{activity.user}</h4>
+                          <p className="text-sm text-muted-foreground">{activity.action}</p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary">{new Date(activity.date).toLocaleDateString()}</Badge>
                     </div>
-                  </div>
-                  <Badge variant="secondary">Hoje</Badge>
-                </div>
-                
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Target className="h-8 w-8 text-blue-500" />
-                    <div>
-                      <h4 className="font-medium">Ana Costa</h4>
-                      <p className="text-sm text-muted-foreground">Concluiu plano de Comunicação</p>
-                    </div>
-                  </div>
-                  <Badge variant="secondary">Ontem</Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Award className="h-8 w-8 text-amber-500" />
-                    <div>
-                      <h4 className="font-medium">Equipe de Vendas</h4>
-                      <p className="text-sm text-muted-foreground">Desbloqueou conquista coletiva</p>
-                    </div>
-                  </div>
-                  <Badge variant="secondary">2 dias</Badge>
-                </div>
+                  ))
+                ) : (
+                  <p className="text-center text-muted-foreground">Nenhuma atividade recente.</p>
+                )}
               </CardContent>
             </Card>
 
@@ -213,33 +280,33 @@ const AdminDashboard = () => {
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="font-medium">Meta de Diagnósticos (Mensal)</h4>
-                    <span className="text-sm text-muted-foreground">80%</span>
+                    <span className="text-sm text-muted-foreground">{displayStats.teamProgress.diagnostics.percentage}%</span>
                   </div>
-                  <Progress value={80} className="h-3" />
+                  <Progress value={displayStats.teamProgress.diagnostics.percentage} className="h-3" />
                   <p className="text-sm text-muted-foreground mt-1">
-                    16 de 20 diagnósticos realizados
+                    {displayStats.teamProgress.diagnostics.current} de {displayStats.teamProgress.diagnostics.total} diagnósticos realizados
                   </p>
                 </div>
 
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="font-medium">Planos de Ação Concluídos</h4>
-                    <span className="text-sm text-muted-foreground">60%</span>
+                    <span className="text-sm text-muted-foreground">{displayStats.teamProgress.plans.percentage}%</span>
                   </div>
-                  <Progress value={60} className="h-3" />
+                  <Progress value={displayStats.teamProgress.plans.percentage} className="h-3" />
                   <p className="text-sm text-muted-foreground mt-1">
-                    12 de 20 planos concluídos
+                    {displayStats.teamProgress.plans.current} de {displayStats.teamProgress.plans.total} planos concluídos
                   </p>
                 </div>
 
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="font-medium">Engajamento Geral</h4>
-                    <span className="text-sm text-muted-foreground">78%</span>
+                    <span className="text-sm text-muted-foreground">{displayStats.teamProgress.engagement.percentage}%</span>
                   </div>
-                  <Progress value={78} className="h-3" />
+                  <Progress value={displayStats.teamProgress.engagement.percentage} className="h-3" />
                   <p className="text-sm text-muted-foreground mt-1">
-                    25 de 32 colaboradores ativos
+                    {displayStats.teamProgress.engagement.current} de {displayStats.teamProgress.engagement.total} colaboradores ativos
                   </p>
                 </div>
               </CardContent>
@@ -261,7 +328,7 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
-                  {companyAchievements.map((achievement) => (
+                  {displayStats.latestAchievements.map((achievement) => (
                     <AchievementBadge 
                       key={achievement.id} 
                       achievement={achievement} 
@@ -306,35 +373,21 @@ const AdminDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-primary font-bold">
-                    1
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">João Silva</p>
-                    <p className="text-sm text-muted-foreground">5 diagnósticos</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center text-foreground font-bold">
-                    2
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">Ana Costa</p>
-                    <p className="text-sm text-muted-foreground">4 diagnósticos</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center text-foreground font-bold">
-                    3
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">Carlos Santos</p>
-                    <p className="text-sm text-muted-foreground">3 diagnósticos</p>
-                  </div>
-                </div>
+                {displayStats.topPerformers.length > 0 ? (
+                  displayStats.topPerformers.map((performer, index) => (
+                    <div key={performer.id} className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${index === 0 ? 'bg-accent text-primary' : 'bg-muted text-foreground'}`}>
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{performer.name}</p>
+                        <p className="text-sm text-muted-foreground">{performer.diagnosticsCount} diagnósticos</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-muted-foreground">Nenhum destaque ainda.</p>
+                )}
               </CardContent>
             </Card>
           </div>

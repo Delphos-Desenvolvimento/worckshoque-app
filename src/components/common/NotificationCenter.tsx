@@ -23,7 +23,8 @@ import {
   Loader2
 } from 'lucide-react';
 import { api, SessionExpiredError } from '@/lib/api';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore, getApiBaseUrl } from '@/stores/authStore';
+import { io } from 'socket.io-client';
 
 interface Notification {
   id: string;
@@ -47,6 +48,35 @@ export default function NotificationCenter({ className = "" }: NotificationCente
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const { isAuthenticated, token } = useAuthStore();
+
+  // WebSocket integration
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+
+    // Obter URL base e remover sufixo /api se existir para conectar ao root
+    const apiBase = getApiBaseUrl();
+    const socketUrl = apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase;
+
+    const socket = io(socketUrl, {
+      auth: {
+        token: token,
+      },
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('connect', () => {
+      // console.log('Connected to notification socket');
+    });
+
+    socket.on('notification', (newNotification: Notification) => {
+      setNotifications((prev) => [newNotification, ...prev]);
+      setUnreadCount((prev) => prev + 1);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [isAuthenticated, token]);
 
   // Buscar notificações
   const fetchNotifications = useCallback(async () => {

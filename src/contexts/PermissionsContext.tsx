@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   'diagnostico.global': 'Acessar Diagnósticos Globais',
   
   // Questionários
+  'questionario.view': 'Visualizar Questionários',
   'questionario.create': 'Criar Questionários',
   'questionario.edit': 'Editar Questionários',
   'questionario.delete': 'Excluir Questionários',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,8 @@ import PageHeader from '@/components/common/PageHeader';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import Diagnostico from './Diagnostico';
+import ModalLayout from '@/components/common/ModalLayout';
+import Diagnostico from '@/components/user/Diagnostico';
 
 interface DashboardData {
   stats: {
@@ -19,6 +19,7 @@ interface DashboardData {
     activePlans: number;
     achievements: number;
     ranking: number;
+    level?: number;
   };
   recentDiagnostics: DiagnosticSummary[];
   activePlans: ActionPlanSummary[];
@@ -47,6 +48,42 @@ interface AchievementSummary {
   icon: string;
   level: 'bronze' | 'silver' | 'gold' | 'diamond' | 'crown';
   unlocked: boolean;
+  unlockedAt?: Date;
+  progress?: number;
+  maxProgress?: number;
+}
+
+interface RawAchievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  level: string;
+  rarity: string;
+  unlocked: boolean;
+  unlockedAt?: string;
+  progress?: number;
+  maxProgress?: number;
+}
+
+interface RawGoal {
+  id: string;
+  status: string;
+}
+
+interface RawActionPlan {
+  id: string;
+  title: string;
+  status: string;
+  progress: number;
+  goals?: RawGoal[];
+}
+
+interface RawDiagnostic {
+  id: string;
+  questionnaire: { title: string };
+  generated_at: string;
+  status: string;
 }
 
 const Dashboard = () => {
@@ -60,50 +97,83 @@ const Dashboard = () => {
     setIsDiagnosticModalOpen(true);
   };
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        // Em um cenário real ideal, teríamos um endpoint unificado /user/dashboard
-        // Como não temos, vamos buscar em paralelo
-        const [diagnosticsRes, plansRes] = await Promise.all([
-          api.get('/diagnostics'),
-          api.get('/action-plans'), // Assumindo endpoint de planos do usuário
-        ]);
+  const fetchDashboardData = useCallback(async (showLoader = true) => {
+    try {
+      if (showLoader) setLoading(true);
+      const [diagnosticsRes, plansRes, achievementsRes] = await Promise.all([
+        api.get('/diagnostics'),
+        api.get('/action-plans'),
+        api.get('/achievements/my'),
+      ]);
 
-        // Tratamento simplificado: se falhar, usa array vazio
-        const diagnostics = diagnosticsRes.ok ? await diagnosticsRes.json() : [];
-        // const plans = plansRes.ok ? await plansRes.json() : []; 
+      const diagnostics = diagnosticsRes.ok ? await diagnosticsRes.json() : [];
+      const plans = plansRes.ok ? await plansRes.json() : [];
+      const achievementsRaw: RawAchievement[] = achievementsRes.ok ? await achievementsRes.json() : [];
+      const achievements = achievementsRaw.map((a) => ({
+        ...a,
+        unlockedAt: a.unlockedAt ? new Date(a.unlockedAt) : undefined,
+        level: a.level as 'bronze' | 'silver' | 'gold' | 'diamond' | 'crown'
+      }));
 
-        // Mock parcial enquanto endpoints não retornam tudo perfeitamente
-        setData({
-          stats: {
-            diagnostics: diagnostics.length,
-            activePlans: 2, // Mock
-            achievements: 2, // Mock
-            ranking: 5 // Mock
-          },
-          recentDiagnostics: diagnostics.slice(0, 3),
-          activePlans: [
-            { id: '1', title: 'Melhorar Comunicação', progress: 70, totalTasks: 10, completedTasks: 7 },
-            { id: '2', title: 'Feedback Semanal', progress: 30, totalTasks: 8, completedTasks: 3 }
-          ],
-          recentAchievements: [
-            { id: '1', title: 'Primeiro Diagnóstico', description: 'Você concluiu seu primeiro diagnóstico.', icon: 'target', level: 'bronze', unlocked: true },
-            { id: '3', title: '7 Dias Seguidos', description: 'Você acessou por 7 dias consecutivos.', icon: 'zap', level: 'gold', unlocked: true }
-          ]
+      const activePlansSummary: ActionPlanSummary[] = (plans as RawActionPlan[])
+        .filter((p) => p.status === 'em_andamento' || p.status === 'rascunho')
+        .map((p) => {
+          const goals = p.goals || [];
+          const totalTasks = goals.length;
+          const completedTasks = goals.filter((g) => g.status === 'completed' || g.status === 'concluido').length;
+          
+          return {
+            id: p.id,
+            title: p.title,
+            progress: p.progress || 0,
+            totalTasks,
+            completedTasks
+          };
         });
 
-      } catch (error) {
-        console.error('Erro ao carregar dashboard:', error);
-        toast.error('Erro ao carregar informações do dashboard');
-      } finally {
-        setLoading(false);
-      }
-    };
+      const totalProgress = activePlansSummary.reduce((acc, curr) => acc + curr.progress, 0);
+      const avgProgress = activePlansSummary.length > 0 
+        ? Math.round(totalProgress / activePlansSummary.length) 
+        : 0;
+      
+      const unlockedAchievements = achievements.filter((a) => a.unlocked);
+      const level = Math.floor(unlockedAchievements.length / 3) + 1;
 
-    fetchDashboardData();
+      const displayAchievements = unlockedAchievements.length > 0 ? unlockedAchievements : achievements.slice(0, 3);
+
+      setData({
+        stats: {
+          diagnostics: diagnostics.length,
+          activePlans: activePlansSummary.length,
+          achievements: unlockedAchievements.length,
+          ranking: avgProgress,
+          level
+        },
+        recentDiagnostics: (diagnostics as RawDiagnostic[]).slice(0, 3).map((d) => ({
+          id: d.id,
+          questionnaire: d.questionnaire || { title: 'Diagnóstico' },
+          generated_at: d.generated_at,
+          status: d.status || 'Concluído'
+        })),
+        activePlans: activePlansSummary.slice(0, 3),
+        recentAchievements: displayAchievements.slice(0, 3)
+      });
+    } catch (error) {
+      console.error('Erro ao carregar dashboard:', error);
+      toast.error('Erro ao carregar informações do dashboard');
+    } finally {
+      if (showLoader) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchDashboardData(true);
+  }, [fetchDashboardData]);
+
+  const handleDiagnosticModalClose = () => {
+    setIsDiagnosticModalOpen(false);
+    fetchDashboardData(false);
+  };
 
   if (loading) {
     return (
@@ -113,7 +183,7 @@ const Dashboard = () => {
     );
   }
 
-  const stats = data?.stats || { diagnostics: 0, activePlans: 0, achievements: 0, ranking: 0 };
+  const stats = data?.stats || { diagnostics: 0, activePlans: 0, achievements: 0, ranking: 0, level: 1 };
 
   return (
     <div className="space-y-8">
@@ -123,8 +193,8 @@ const Dashboard = () => {
         icon={LayoutDashboard}
         badges={[
           { label: `${stats.diagnostics} diagnósticos realizados`, icon: FileText },
-          { label: "Nível 5", icon: Trophy },
-          { label: "85% de progresso", icon: TrendingUp }
+          { label: `Nível ${stats.level || 1}`, icon: Trophy },
+          { label: `${stats.ranking}% de progresso`, icon: TrendingUp }
         ]}
         actions={[
           { 
@@ -311,11 +381,17 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <Dialog open={isDiagnosticModalOpen} onOpenChange={setIsDiagnosticModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <Diagnostico mode="modal" onComplete={() => setIsDiagnosticModalOpen(false)} />
-        </DialogContent>
-      </Dialog>
+      <ModalLayout
+        isOpen={isDiagnosticModalOpen}
+        onClose={handleDiagnosticModalClose}
+        title="Novo Diagnóstico"
+        size="xl"
+      >
+        <Diagnostico
+          mode="modal"
+          onComplete={handleDiagnosticModalClose}
+        />
+      </ModalLayout>
     </div>
   );
 };

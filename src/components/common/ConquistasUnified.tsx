@@ -1,13 +1,14 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import PageHeader from "@/components/common/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/contexts/PermissionsContext";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 import {
   Award,
   Star,
@@ -18,60 +19,32 @@ import {
   Search,
   Plus,
   Users,
+  Loader2
 } from "lucide-react";
 
-// Mock data placeholders; these can be replaced with API integration later
-const mockUserStats = {
-  nivel: 8,
-  xpAtual: 1750,
-  xpProximo: 2000,
-  posicaoRanking: 3,
-  totalUsuarios: 47,
-  conquistasDesbloqueadas: 12,
-  totalConquistas: 25,
-};
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  level: string;
+  category: string;
+  xp_points: number;
+  rarity: string;
+  is_active: boolean;
+  unlocked: boolean;
+  unlockedAt?: string;
+  progress?: number;
+  maxProgress?: number;
+}
 
-const mockUserRanking = [
-  { posicao: 1, nome: "Ana Costa", xp: 2850, avatar: "👩‍💼" },
-  { posicao: 2, nome: "Pedro Silva", xp: 2320, avatar: "👨‍💻" },
-  { posicao: 3, nome: "João Silva", xp: 1750, avatar: "👤", isCurrentUser: true },
-  { posicao: 4, nome: "Maria Santos", xp: 1650, avatar: "👩‍🔬" },
-  { posicao: 5, nome: "Carlos Lima", xp: 1420, avatar: "👨‍🎨" },
-];
-
-const mockUserTimeline = [
-  { data: "2024-01-20", evento: "Subiu para nível 8", tipo: "nivel", xp: 200 },
-  { data: "2024-01-18", evento: "Conquistou \"Líder em Desenvolvimento\"", tipo: "conquista", xp: 250 },
-  { data: "2024-01-15", evento: "Completou Plano de Ação", tipo: "acao", xp: 50 },
-  { data: "2024-01-12", evento: "Fez novo diagnóstico", tipo: "diagnostico", xp: 100 },
-];
-
-const mockAdminConquistas = [
-  {
-    id: "c1",
-    nome: "Primeiro Diagnóstico",
-    descricao: "Complete seu primeiro diagnóstico",
-    icone: "🏆",
-    nivel: "bronze",
-    raridade: "comum",
-    pontos: 100,
-    usuariosConquistaram: 152,
-    taxaConquista: 34,
-    status: "ativa",
-  },
-  {
-    id: "c2",
-    nome: "Plano Concluído",
-    descricao: "Conclua um plano de ação",
-    icone: "✅",
-    nivel: "prata",
-    raridade: "rara",
-    pontos: 250,
-    usuariosConquistaram: 87,
-    taxaConquista: 12,
-    status: "ativa",
-  },
-];
+interface UserStats {
+  nivel: number;
+  xpAtual: number;
+  xpProximo: number;
+  conquistasDesbloqueadas: number;
+  totalConquistas: number;
+}
 
 function getEventIcon(tipo: string) {
   switch (tipo) {
@@ -87,6 +60,60 @@ function getEventIcon(tipo: string) {
       return <Trophy className="w-5 h-5 text-muted-foreground" />;
   }
 }
+
+const mockUserStats = {
+  nivel: 5,
+  xpAtual: 2450,
+  xpProximo: 5000,
+  conquistasDesbloqueadas: 12,
+  totalConquistas: 50,
+  posicaoRanking: 42,
+  totalUsuarios: 150
+};
+
+const mockAdminConquistas = [
+  {
+    id: '1',
+    nome: 'Primeiros Passos',
+    descricao: 'Complete o tutorial inicial da plataforma',
+    icone: '🚀',
+    nivel: 'iniciante',
+    raridade: 'comum',
+    status: 'ativa',
+    pontos: 100,
+    usuariosConquistaram: 125,
+    taxaDesbloqueio: 85
+  },
+  {
+    id: '2',
+    nome: 'Diagnóstico Completo',
+    descricao: 'Realize um diagnóstico completo de sua empresa',
+    icone: '📊',
+    nivel: 'intermediario',
+    raridade: 'rara',
+    status: 'ativa',
+    pontos: 500,
+    usuariosConquistaram: 45,
+    taxaDesbloqueio: 30
+  }
+];
+
+const mockUserTimeline = [
+  {
+    id: '1',
+    titulo: 'Conquista Desbloqueada: Primeiros Passos',
+    data: new Date().toISOString(),
+    tipo: 'conquista',
+    pontos: 100
+  },
+  {
+    id: '2',
+    titulo: 'Subiu para o Nível 5',
+    data: new Date(Date.now() - 86400000).toISOString(),
+    tipo: 'nivel',
+    pontos: 0
+  }
+];
 
 export default function ConquistasUnified() {
   const { user } = useAuthStore();
@@ -204,7 +231,7 @@ export default function ConquistasUnified() {
                           </div>
                           <div className="flex items-center gap-2">
                             <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">{conquista.taxaConquista}% conquistaram</span>
+                            <span className="text-sm text-muted-foreground">{conquista.taxaDesbloqueio}% conquistaram</span>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -294,12 +321,12 @@ export default function ConquistasUnified() {
                     <div key={index} className="flex items-center gap-4">
                       <div className="flex-shrink-0">{getEventIcon(item.tipo)}</div>
                       <div className="flex-1">
-                        <p className="font-medium">{item.evento}</p>
+                        <p className="font-medium">{item.titulo}</p>
                         <p className="text-sm text-muted-foreground">
                           {new Date(item.data).toLocaleDateString("pt-BR")}
                         </p>
                       </div>
-                      <Badge variant="outline">+{item.xp} XP</Badge>
+                      <Badge variant="outline">+{item.pontos} XP</Badge>
                     </div>
                   ))}
                 </div>

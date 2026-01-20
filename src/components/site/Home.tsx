@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/site/Footer';
-import DiagnosticoModal from '@/components/site/DiagnosticoModal';
+import ModalLayout from '@/components/common/ModalLayout';
+import Diagnostico from '@/components/user/Diagnostico';
 import HeroSection from './HeroSection';
 import FeaturesSection from './FeaturesSection';
 import StatsSection from './StatsSection';
@@ -24,10 +25,17 @@ const Home: React.FC = () => {
       <CTASection onDiagnosticoClick={handleDiagnosticoClick} />
       <Footer />
 
-      <DiagnosticoModal 
+      <ModalLayout
         isOpen={isDiagnosticoModalOpen}
         onClose={() => setIsDiagnosticoModalOpen(false)}
-      />
+        title="Novo Diagnóstico"
+        size="xl"
+      >
+        <Diagnostico
+          mode="modal"
+          onComplete={() => setIsDiagnosticoModalOpen(false)}
+        />
+      </ModalLayout>
     </div>
   );
 };

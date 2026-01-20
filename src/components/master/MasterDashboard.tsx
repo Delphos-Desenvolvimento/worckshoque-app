@@ -33,109 +33,55 @@ interface DashboardStats {
   notifications: { total: number; unread: number };
   activity: { total24h: number; logins24h: number };
   nps?: number;
+  companies?: { total: number; active: number };
+  revenue?: { mrr: number };
+  achievements?: { totalUnlocked: number };
 }
 
-const mockGlobalStats = {
-  totalEmpresas: 12,
-  totalUsuarios: 487,
-  diagnosticosGlobais: 1543,
-  receitaMensal: 45780,
-  crescimentoMensal: 12.5,
-  empresasAtivas: 11,
-  planosAtivos: 156,
-  conquistasDesbloqueadas: 890
-};
+interface TopCompany {
+  companyId: string;
+  companyName: string;
+  revenue: number;
+  engagement: number;
+  usersCount: number;
+}
 
-const mockTopEmpresas = [
-  { 
-    id: '1', 
-    nome: 'TechCorp Solutions', 
-    usuarios: 89, 
-    engajamento: 92, 
-    receita: 12500,
-    crescimento: 15.2
-  },
-  { 
-    id: '2', 
-    nome: 'InnovateHub', 
-    usuarios: 67, 
-    engajamento: 88, 
-    receita: 9800,
-    crescimento: 8.7
-  },
-  { 
-    id: '3', 
-    nome: 'GlobalTech Inc', 
-    usuarios: 125, 
-    engajamento: 85, 
-    receita: 15200,
-    crescimento: 22.1
-  },
-  { 
-    id: '4', 
-    nome: 'DataDriven Co', 
-    usuarios: 45, 
-    engajamento: 79, 
-    receita: 6700,
-    crescimento: -2.3
-  }
-];
-
-const mockAtividadesRecentes = [
-  {
-    id: '1',
-    tipo: 'nova_empresa',
-    empresa: 'StartupTech',
-    descricao: 'Nova empresa cadastrada no sistema',
-    timestamp: '2024-01-20T10:30:00',
-    icon: Building
-  },
-  {
-    id: '2',
-    tipo: 'receita',
-    empresa: 'TechCorp Solutions',
-    descricao: 'Pagamento processado - R$ 2.500',
-    timestamp: '2024-01-20T09:15:00',
-    icon: DollarSign
-  },
-  {
-    id: '3',
-    tipo: 'usuario',
-    empresa: 'InnovateHub',
-    descricao: '15 novos usuários adicionados',
-    timestamp: '2024-01-19T16:45:00',
-    icon: Users
-  },
-  {
-    id: '4',
-    tipo: 'diagnostico',
-    empresa: 'GlobalTech Inc',
-    descricao: '50 diagnósticos realizados hoje',
-    timestamp: '2024-01-19T14:20:00',
-    icon: FileText
-  }
-];
+interface RecentActivity {
+  id: string;
+  type: string;
+  company: string;
+  description: string;
+  timestamp: string;
+}
 
 export default function MasterDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [topCompanies, setTopCompanies] = useState<TopCompany[]>([]);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/reports/overview?period=all');
-        const data = await response.json();
-        setStats(data);
+        const [statsRes, companiesRes, activitiesRes] = await Promise.all([
+          api.get('/reports/overview?period=all'),
+          api.get('/reports/clients/top?limit=4'),
+          api.get('/reports/activities/recent?limit=10')
+        ]);
+
+        if (statsRes.ok) setStats(await statsRes.json());
+        if (companiesRes.ok) setTopCompanies(await companiesRes.json());
+        if (activitiesRes.ok) setRecentActivities(await activitiesRes.json());
       } catch (error) {
-        console.error('Erro ao carregar estatísticas:', error);
-        toast.error('Erro ao carregar dados do dashboard. Usando dados locais.');
+        console.error('Erro ao carregar dados:', error);
+        toast.error('Erro ao carregar dados do dashboard.');
       } finally {
         setLoading(false);
       }
     };
     
-    fetchStats();
+    fetchData();
   }, []);
 
   const formatCurrency = (value: number) => {
@@ -155,17 +101,28 @@ export default function MasterDashboard() {
     }
   };
 
-  // Use stats real se disponível, senão fallback para mock (parcialmente mapeado)
+  if (loading) {
+    return <div className="p-8 text-center">Carregando dashboard...</div>;
+  }
+
+  // Use stats real se disponível
   const displayStats = stats ? {
-    totalEmpresas: 12, // Backend não retorna isso ainda no overview padrão
+    totalEmpresas: stats.companies?.total || 0,
     totalUsuarios: stats.users.total,
     diagnosticosGlobais: stats.diagnostics.total,
-    receitaMensal: 45780, // Mock
-    crescimentoMensal: 12.5, // Mock
-    empresasAtivas: 11, // Mock
+    receitaMensal: stats.revenue?.mrr || 0,
+    empresasAtivas: stats.companies?.active || 0,
     planosAtivos: stats.actionPlans.total,
-    conquistasDesbloqueadas: 890 // Mock
-  } : mockGlobalStats;
+    conquistasDesbloqueadas: stats.achievements?.totalUnlocked || 0
+  } : {
+    totalEmpresas: 0,
+    totalUsuarios: 0,
+    diagnosticosGlobais: 0,
+    receitaMensal: 0,
+    empresasAtivas: 0,
+    planosAtivos: 0,
+    conquistasDesbloqueadas: 0
+  };
 
   return (
     <div className="space-y-6">
@@ -203,7 +160,7 @@ export default function MasterDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{displayStats.totalUsuarios}</div>
               <p className="text-xs text-muted-foreground">
-                +{mockGlobalStats.crescimentoMensal}% em relação ao mês anterior
+                Total de usuários cadastrados
               </p>
             </CardContent>
           </Card>
@@ -217,7 +174,7 @@ export default function MasterDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{displayStats.diagnosticosGlobais}</div>
               <p className="text-xs text-muted-foreground">
-                +180 novos diagnósticos
+                Total de diagnósticos
               </p>
             </CardContent>
           </Card>
@@ -229,7 +186,7 @@ export default function MasterDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{displayStats.planosAtivos}</div>
               <p className="text-xs text-muted-foreground">
-                +19% desde o último mês
+                Planos em execução
               </p>
             </CardContent>
           </Card>
@@ -243,7 +200,7 @@ export default function MasterDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(displayStats.receitaMensal)}</div>
               <p className="text-xs text-muted-foreground">
-                +20.1% em relação ao mês anterior
+                MRR Atual
               </p>
             </CardContent>
           </Card>
@@ -260,31 +217,25 @@ export default function MasterDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockTopEmpresas.map((empresa) => (
-                  <div key={empresa.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <div>
-                      <h4 className="font-medium">{empresa.nome}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {empresa.usuarios} usuários • {empresa.engajamento}% engajamento
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-green-600">
-                        {formatCurrency(empresa.receita)}
-                      </p>
-                      <div className="flex items-center gap-1">
-                        {empresa.crescimento > 0 ? (
-                          <TrendingUp className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <TrendingDown className="w-4 h-4 text-red-500" />
-                        )}
-                        <span className={`text-sm ${empresa.crescimento > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {empresa.crescimento > 0 ? '+' : ''}{empresa.crescimento}%
-                        </span>
+                {topCompanies.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">Nenhuma empresa encontrada.</p>
+                ) : (
+                  topCompanies.map((empresa) => (
+                    <div key={empresa.companyId} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div>
+                        <h4 className="font-medium">{empresa.companyName}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {empresa.usersCount} usuários • {empresa.engagement} atividades
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">
+                          {formatCurrency(empresa.revenue)}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -298,20 +249,24 @@ export default function MasterDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockAtividadesRecentes.map((atividade) => (
-                  <div key={atividade.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                    <div className="flex-shrink-0 mt-1">
-                      {getActivityIcon(atividade.tipo)}
+                {recentActivities.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">Nenhuma atividade recente.</p>
+                ) : (
+                  recentActivities.map((atividade) => (
+                    <div key={atividade.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                      <div className="flex-shrink-0 mt-1">
+                        {getActivityIcon(atividade.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{atividade.description}</p>
+                        <p className="text-xs text-muted-foreground">{atividade.company}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(atividade.timestamp).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{atividade.descricao}</p>
-                      <p className="text-xs text-muted-foreground">{atividade.empresa}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(atividade.timestamp).toLocaleString('pt-BR')}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -325,7 +280,7 @@ export default function MasterDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-600 mb-2">
-                {mockGlobalStats.planosAtivos}
+                {displayStats.planosAtivos}
               </div>
               <p className="text-sm text-muted-foreground">
                 Planos de ação em execução
@@ -339,7 +294,7 @@ export default function MasterDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-yellow-600 mb-2">
-                {mockGlobalStats.conquistasDesbloqueadas}
+                {displayStats.conquistasDesbloqueadas}
               </div>
               <p className="text-sm text-muted-foreground">
                 Conquistas desbloqueadas
@@ -349,14 +304,14 @@ export default function MasterDashboard() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Crescimento</CardTitle>
+              <CardTitle className="text-lg">Empresas Ativas</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-600 mb-2">
-                +{mockGlobalStats.crescimentoMensal}%
+                {displayStats.empresasAtivas}
               </div>
               <p className="text-sm text-muted-foreground">
-                Crescimento mensal
+                Empresas ativas na plataforma
               </p>
             </CardContent>
           </Card>

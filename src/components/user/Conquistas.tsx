@@ -1,135 +1,44 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { Trophy, Star, Target, Zap, Medal, Crown, Lock } from 'lucide-react';
+import { Trophy, Star, Target, Zap, Medal, Crown, Lock, Loader2 } from 'lucide-react';
 import PageHeader from '@/components/common/PageHeader';
-// import Header from '@/components/layout/Header'; // Removed - using DashboardLayout
 import AchievementBadge from '@/components/common/AchievementBadge';
 import Modal from '@/components/ui/modal';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
-const mockUser = {
-  name: 'João Silva',
-  role: 'user' as const,
-  company: 'TechCorp'
-};
+interface ApiAchievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  level: string;
+  category: string;
+  xp_points: number;
+  rarity: string;
+  unlocked: boolean;
+  unlockedAt?: string | null;
+  progress?: number;
+  maxProgress?: number;
+}
 
-const achievements = [
-  // Diagnósticos
-  {
-    id: '1',
-    title: 'Primeiro Diagnóstico',
-    description: 'Completou seu primeiro diagnóstico no WorkChoque',
-    icon: 'target',
-    level: 'bronze' as const,
-    category: 'diagnosticos',
-    unlocked: true,
-    unlockedAt: new Date('2024-01-15'),
-    points: 10
-  },
-  {
-    id: '2',
-    title: '5 Diagnósticos',
-    description: 'Realizou 5 diagnósticos diferentes',
-    icon: 'trophy',
-    level: 'silver' as const,
-    category: 'diagnosticos',
-    unlocked: false,
-    progress: 3,
-    maxProgress: 5,
-    points: 25
-  },
-  {
-    id: '3',
-    title: '10 Diagnósticos',
-    description: 'Realizou 10 diagnósticos - especialista em análise!',
-    icon: 'medal',
-    level: 'gold' as const,
-    category: 'diagnosticos',
-    unlocked: false,
-    progress: 3,
-    maxProgress: 10,
-    points: 50
-  },
-
-  // Planos de Ação
-  {
-    id: '4',
-    title: 'Primeiro Plano',
-    description: 'Concluiu seu primeiro plano de ação',
-    icon: 'star',
-    level: 'bronze' as const,
-    category: 'planos',
-    unlocked: false,
-    progress: 0,
-    maxProgress: 1,
-    points: 15
-  },
-  {
-    id: '5',
-    title: '5 Planos Concluídos',
-    description: 'Concluiu 5 planos de ação com sucesso',
-    icon: 'trophy',
-    level: 'silver' as const,
-    category: 'planos',
-    unlocked: false,
-    progress: 0,
-    maxProgress: 5,
-    points: 40
-  },
-
-  // Engajamento
-  {
-    id: '6',
-    title: '7 Dias Seguidos',
-    description: 'Manteve-se ativo por 7 dias consecutivos',
-    icon: 'zap',
-    level: 'gold' as const,
-    category: 'engajamento',
-    unlocked: true,
-    unlockedAt: new Date('2024-02-01'),
-    points: 30
-  },
-  {
-    id: '7',
-    title: '30 Dias Seguidos',
-    description: 'Incrível! 30 dias consecutivos de atividade',
-    icon: 'crown',
-    level: 'diamond' as const,
-    category: 'engajamento',
-    unlocked: false,
-    progress: 7,
-    maxProgress: 30,
-    points: 100
-  },
-
-  // Especiais
-  {
-    id: '8',
-    title: 'Primeiro Login',
-    description: 'Bem-vindo ao WorkChoque!',
-    icon: 'target',
-    level: 'bronze' as const,
-    category: 'especiais',
-    unlocked: true,
-    unlockedAt: new Date('2024-01-10'),
-    points: 5
-  },
-  {
-    id: '9',
-    title: 'Colecionador',
-    description: 'Desbloqueou 10 conquistas diferentes',
-    icon: 'crown',
-    level: 'crown' as const,
-    category: 'especiais',
-    unlocked: false,
-    progress: 3,
-    maxProgress: 10,
-    points: 200
-  }
-];
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  level: 'bronze' | 'silver' | 'gold' | 'diamond' | 'crown';
+  category: string;
+  unlocked: boolean;
+  unlockedAt?: Date;
+  points: number;
+  progress?: number;
+  maxProgress?: number;
+}
 
 const categories = [
   { id: 'todas', label: 'Todas', icon: Trophy },
@@ -140,15 +49,69 @@ const categories = [
 ];
 
 const Conquistas = () => {
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('todas');
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const filteredAchievements = selectedCategory === 'todas' 
-    ? achievements 
-    : achievements.filter(a => a.category === selectedCategory);
+  useEffect(() => {
+    const loadAchievements = async () => {
+      try {
+        setLoading(true);
+        const res = await api.get('/achievements/my');
+        if (!res.ok) {
+          throw new Error('Falha ao carregar conquistas');
+        }
+        const data: ApiAchievement[] = await res.json();
+        const mapped: Achievement[] = data.map((a) => {
+          const level =
+            a.level === 'silver' ||
+            a.level === 'gold' ||
+            a.level === 'diamond' ||
+            a.level === 'crown'
+              ? (a.level as Achievement['level'])
+              : 'bronze';
 
-  const unlockedCount = achievements.filter(a => a.unlocked).length;
-  const totalPoints = achievements.filter(a => a.unlocked).reduce((sum, a) => sum + a.points, 0);
+          let category = 'especiais';
+          if (a.category === 'diagnostico') category = 'diagnosticos';
+          else if (a.category === 'plano_acao') category = 'planos';
+          else if (a.category === 'engajamento') category = 'engajamento';
+
+          return {
+            id: a.id,
+            title: a.title,
+            description: a.description,
+            icon: a.icon || 'trophy',
+            level,
+            category,
+            unlocked: a.unlocked,
+            unlockedAt: a.unlockedAt ? new Date(a.unlockedAt) : undefined,
+            points: a.xp_points ?? 0,
+            progress: a.progress,
+            maxProgress: a.maxProgress,
+          };
+        });
+        setAchievements(mapped);
+      } catch (error) {
+        toast.error('Erro ao carregar conquistas');
+        setAchievements([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadAchievements();
+  }, []);
+
+  const filteredAchievements =
+    selectedCategory === 'todas'
+      ? achievements
+      : achievements.filter((a) => a.category === selectedCategory);
+
+  const unlockedCount = achievements.filter((a) => a.unlocked).length;
+  const totalPoints = achievements
+    .filter((a) => a.unlocked)
+    .reduce((sum, a) => sum + a.points, 0);
 
   return (
     <div className="space-y-8">
@@ -160,7 +123,12 @@ const Conquistas = () => {
 
       <div className="container mx-auto px-4">
 
-        {/* Stats Cards */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : (
+        <>
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -203,7 +171,6 @@ const Conquistas = () => {
           </Card>
         </div>
 
-        {/* Categories and Achievements */}
         <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
           <TabsList className="grid w-full grid-cols-5 mb-8">
             {categories.map((category) => {
@@ -224,7 +191,9 @@ const Conquistas = () => {
           {categories.map((category) => (
             <TabsContent key={category.id} value={category.id}>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {(category.id === 'todas' ? achievements : achievements.filter(a => a.category === category.id))
+                {(category.id === 'todas'
+                  ? achievements
+                  : achievements.filter((a) => a.category === category.id))
                   .map((achievement) => (
                   <div key={achievement.id} className="relative">
                     <AchievementBadge achievement={achievement} />
@@ -269,7 +238,6 @@ const Conquistas = () => {
           ))}
         </Tabs>
 
-        {/* Achievement Tips */}
         <Card className="mt-8">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -298,6 +266,8 @@ const Conquistas = () => {
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
 
       <Modal

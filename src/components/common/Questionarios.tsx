@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -76,27 +76,13 @@ interface Questionnaire {
   questions?: Question[];
 }
 
-const mockQuestionnaires: Questionnaire[] = [
-  {
-    id: '1',
-    title: 'DIAGNÓSTICO I',
-    description: 'SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSAAASSSSSSSSSSSSSSSSSSSSSXXXXXXXXXXXXXXXXS',
-    type: 'geral',
-    is_active: true,
-    questions_count: 2,
-    estimated_time: 15,
-    created_at: '2024-09-16T10:00:00Z',
-    updated_at: '2024-09-16T10:00:00Z',
-    created_by: 'user_1'
-  }
-];
-
 import { toast } from 'sonner';
 
 export default function Questionarios() {
   const { token, user } = useAuthStore();
   const { hasPermission } = usePermissions();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Estados
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
@@ -142,6 +128,21 @@ export default function Questionarios() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterType, setFilterType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('create') === '1') {
+      setModalMode('create');
+      setEditingQuestionnaire(null);
+      setIsCreateModalOpen(true);
+      params.delete('create');
+      const nextSearch = params.toString();
+      navigate(
+        { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+        { replace: true },
+      );
+    }
+  }, [location.pathname, location.search, navigate]);
 
   // Memoizar função de carregamento para evitar recriações
   const loadQuestionnaires = useCallback(async () => {
@@ -224,16 +225,8 @@ export default function Questionarios() {
     } catch (err: unknown) {
       console.error('Erro ao carregar questionários:', err);
       
-      // Fallback para mock data se a API não estiver disponível
-      const isAxiosError = err && typeof err === 'object' && 'code' in err;
-      const axiosError = err as { code?: string; response?: { status?: number } };
-      if (isAxiosError && (axiosError.code === 'ECONNREFUSED' || axiosError.response?.status && axiosError.response.status >= 500)) {
-        console.log('API não disponível, usando dados mock');
-        setQuestionnaires(mockQuestionnaires);
-      } else {
-        const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar questionários';
-        setError(errorMessage);
-      }
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar questionários';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
