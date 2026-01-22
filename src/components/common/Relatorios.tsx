@@ -82,6 +82,7 @@ import {
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PageHeader from '@/components/common/PageHeader';
 import Pagination from '@/components/common/Pagination';
+import * as XLSX from 'xlsx';
 
 // Interfaces para diferentes tipos de dados
 interface OverviewData {
@@ -376,6 +377,10 @@ export default function Relatorios() {
     const range = periodToRange(selectedPeriod);
     
     if (user?.role === 'user') {
+      if (!user.company) {
+        setCompanyOwnerData(null);
+        return;
+      }
       try {
         const data = await getCompanyDashboard(range, user.company);
         setCompanyOwnerData(data);
@@ -399,18 +404,7 @@ export default function Relatorios() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriod, activeTab]);
 
-  // Verificação de permissão
-  if (!hasPermission('relatorio.view')) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold">Acesso Negado</h3>
-          <p className="text-muted-foreground">Você não tem permissão para visualizar relatórios.</p>
-        </div>
-      </div>
-    );
-  }
+  const canViewReports = hasPermission('relatorio.view');
 
   // Configuração dinâmica baseada no role
   const getReportConfig = () => {
@@ -459,15 +453,273 @@ export default function Relatorios() {
   };
 
   const config = getReportConfig();
+
+  const exportExcel = useCallback(async () => {
+    if (!config) return;
+
+    const toSheetName = (name: string) => name.replace(/[\\/?*[\]:\]]/g, ' ').slice(0, 31) || 'Sheet1';
+
+    const book = XLSX.utils.book_new();
+
+    const appendJsonSheet = (name: string, rows: Array<Record<string, unknown>>) => {
+      const safeName = toSheetName(name);
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(book, ws, safeName);
+    };
+
+    const appendKeyValueSheet = (name: string, data: Record<string, unknown>) => {
+      const rows = Object.entries(data).map(([key, value]) => ({
+        campo: key,
+        valor: value == null ? '' : value,
+      }));
+      appendJsonSheet(name, rows);
+    };
+
+    if (
+      activeTab === 'audit' &&
+      (user?.role === 'admin' || user?.role === 'master') &&
+      hasPermission('auditoria.logs.view')
+    ) {
+      const [stats, logs, history, alerts] = await Promise.all([
+        auditApi.getStats('24h'),
+        auditApi.getActivityLogs({ page: 1, limit: 500 }),
+        auditApi.getLoginHistory({ page: 1, limit: 200 }),
+        auditApi.getSecurityAlerts(),
+      ]);
+
+      appendKeyValueSheet('KPIs', {
+        totalActivities24h: stats?.totalActivities24h ?? 0,
+        suspiciousLogins: stats?.suspiciousLogins ?? 0,
+        criticalAlerts: stats?.criticalAlerts ?? 0,
+        complianceRate: `${stats?.complianceRate ?? 0}%`,
+      });
+
+      appendJsonSheet(
+        'Atividade (24h)',
+        (stats?.activityTimeline || []).map((t) => ({
+          time: t.time,
+          activities: t.activities,
+        })),
+      );
+
+      appendJsonSheet(
+        'Logins (24h)',
+        (stats?.loginAttempts || []).map((t) => ({
+          time: t.time,
+          successful: t.successful,
+          failed: t.failed,
+        })),
+      );
+
+      appendJsonSheet(
+        'Alertas',
+        (alerts || []).map((a) => ({
+          id: a.id,
+          type: a.type,
+          severity: a.severity,
+          title: a.title,
+          status: a.status,
+          userId: a.userId ?? '',
+          ipAddress: a.ipAddress ?? '',
+          userAgent: a.userAgent ?? '',
+          createdAt: a.createdAt ? new Date(a.createdAt).toISOString() : '',
+        })),
+      );
+
+      appendJsonSheet(
+        'Logs',
+        (logs?.logs || []).map((l) => ({
+          id: l.id,
+          action: l.action,
+          userName: l.userName ?? '',
+          userEmail: l.userEmail ?? '',
+          userRole: l.userRole ?? '',
+          entityType: l.entityType ?? '',
+          entityId: l.entityId ?? '',
+          ipAddress: l.ipAddress ?? '',
+          createdAt: l.createdAt ? new Date(l.createdAt).toISOString() : '',
+        })),
+      );
+
+      appendJsonSheet(
+        'Histórico Logins',
+        (history?.history || []).map((h) => ({
+          id: h.id,
+          userEmail: h.userEmail ?? '',
+          status: h.status ?? '',
+          ipAddress: h.ipAddress ?? '',
+          loginAt: h.loginAt ? new Date(h.loginAt).toISOString() : '',
+          logoutAt: h.logoutAt ? new Date(h.logoutAt).toISOString() : '',
+          sessionDuration: h.sessionDuration ?? '',
+          deviceInfo: h.deviceInfo ?? '',
+          browserInfo: h.browserInfo ?? '',
+        })),
+      );
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(book, `auditoria_${stamp}.xlsx`);
+      return;
+    }
+
+    if (config.dataType === 'companyOwner') {
+      if (!companyOwnerData) return;
+
+      appendKeyValueSheet('Resumo', {
+        overallScore: companyOwnerData.overallScore,
+        totalSectors: companyOwnerData.totalSectors,
+        criticalSectors: companyOwnerData.criticalSectors,
+        excellentSectors: companyOwnerData.excellentSectors,
+        activePlans: companyOwnerData.activePlans,
+        completedPlans: companyOwnerData.completedPlans,
+        planCompletionRate: `${companyOwnerData.planCompletionRate}%`,
+        avgImplementationTime: companyOwnerData.avgImplementationTime,
+      });
+
+      appendJsonSheet(
+        'Setores',
+        (companyOwnerData.sectorPerformance || []).map((s) => ({
+          name: s.name,
+          score: s.score,
+          trend: s.trend,
+          priority: s.priority,
+          lastDiagnostic: s.lastDiagnostic,
+        })),
+      );
+
+      appendJsonSheet(
+        'Score (Histórico)',
+        (companyOwnerData.scoreHistory || []).map((h) => ({
+          date: h.date,
+          score: h.score,
+        })),
+      );
+
+      appendJsonSheet(
+        'Planos (Histórico)',
+        (companyOwnerData.activePlansHistory || []).map((p) => ({
+          id: p.id,
+          title: p.title,
+          sector: p.sector,
+          progress: p.progress,
+          deadline: p.deadline,
+          priority: p.priority,
+          tasksCompleted: p.tasksCompleted,
+          totalTasks: p.totalTasks,
+          createdAt: p.createdAt,
+          estimatedCompletion: p.estimatedCompletion,
+        })),
+      );
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(book, `relatorio_empresa_${stamp}.xlsx`);
+      return;
+    }
+
+    if (config.dataType === 'admin' || config.dataType === 'global') {
+      appendKeyValueSheet('Resumo', {
+        periodo: selectedPeriod,
+        usuariosTotal: overviewData?.users?.total ?? 0,
+        usuariosAtivos: overviewData?.users?.active ?? 0,
+        diagnosticosTotal: overviewData?.diagnostics?.total ?? 0,
+        diagnosticosConcluidos: overviewData?.diagnostics?.completed ?? 0,
+        planos: overviewData?.actionPlans?.total ?? 0,
+        nps: overviewData?.nps ?? 0,
+        mrr: financialSummary?.mrr ?? 0,
+        revenue: financialSummary?.revenue ?? 0,
+        churnRate: financialSummary?.churnRate ?? 0,
+      });
+
+      appendJsonSheet(
+        'Clientes (Top)',
+        (clientsTop || []).map((c) => ({
+          companyName: c.companyName,
+          diagnostics: c.diagnostics ?? 0,
+          engagement: c.engagement ?? 0,
+          revenue: c.revenue ?? 0,
+          joinDate: c.joinDate ?? '',
+          lastActivity: c.lastActivity ?? '',
+          status: c.status ?? '',
+        })),
+      );
+
+      appendJsonSheet(
+        'Financeiro (Histórico)',
+        (financialHistory || []).map((f) => ({
+          date: f.date,
+          revenue: f.revenue,
+        })),
+      );
+
+      appendJsonSheet(
+        'Clientes (Histórico)',
+        (clientsHistory || []).map((c) => ({
+          date: c.date,
+          activeClients: c.activeClients,
+        })),
+      );
+
+      appendJsonSheet(
+        'Plataforma (Histórico)',
+        (platformHistory || []).map((p) => ({
+          date: p.date,
+          diagnostics: p.diagnostics,
+          sessions: p.sessions,
+        })),
+      );
+
+      appendJsonSheet(
+        'Uso (Status)',
+        (platformUsage?.diagnosticsByStatus || []).map((d) => ({
+          status: d.status,
+          count: d.count,
+        })),
+      );
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      const prefix = config.dataType === 'global' ? 'analytics_plataforma' : 'relatorio_admin';
+      XLSX.writeFile(book, `${prefix}_${stamp}.xlsx`);
+    }
+  }, [
+    activeTab,
+    clientsHistory,
+    clientsTop,
+    companyOwnerData,
+    config,
+    financialHistory,
+    financialSummary,
+    hasPermission,
+    overviewData,
+    platformHistory,
+    platformUsage,
+    selectedPeriod,
+    user?.role,
+  ]);
+
+  if (!canViewReports) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold">Acesso Negado</h3>
+          <p className="text-muted-foreground">Você não tem permissão para visualizar relatórios.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!config) return null;
 
   // Renderização de conteúdo específico por role
   const renderRoleSpecificContent = () => {
     // Se for aba de auditoria para admin/master
-    if (activeTab === 'audit' && (user?.role === 'admin' || user?.role === 'master') && hasPermission('auditoria.logs.view')) {
+    if (
+      activeTab === 'audit' &&
+      (user?.role === 'admin' || user?.role === 'master') &&
+      hasPermission('auditoria.logs.view')
+    ) {
       return <AuditReports activeTab={activeTab} refreshTick={auditRefreshTick} />;
     }
-    
+
     switch (config.dataType) {
       case 'companyOwner':
         if (!companyOwnerData) {
@@ -481,25 +733,17 @@ export default function Relatorios() {
       case 'admin': {
         const totalClients = overviewData?.users?.total ?? 0;
         const totalDiagnostics = overviewData?.diagnostics?.total ?? 0;
-        
-        // Calculate derived metrics from history
+
         const getLastMonthNetNew = () => {
-           if (!clientsHistory || clientsHistory.length < 2) return 0;
-           const last = clientsHistory[clientsHistory.length - 1];
-           const prev = clientsHistory[clientsHistory.length - 2];
-           return Math.max(0, last.activeClients - prev.activeClients);
+          if (!clientsHistory || clientsHistory.length < 2) return 0;
+          const last = clientsHistory[clientsHistory.length - 1];
+          const prev = clientsHistory[clientsHistory.length - 2];
+          return Math.max(0, last.activeClients - prev.activeClients);
         };
 
-        const getChurnedClients = () => {
-           if (!clientsHistory || clientsHistory.length < 2) return 0;
-           const last = clientsHistory[clientsHistory.length - 1];
-           const prev = clientsHistory[clientsHistory.length - 2];
-           return Math.max(0, prev.activeClients - last.activeClients);
-        };
-        
         const getDiagnosticsThisMonth = () => {
-           if (!platformHistory || platformHistory.length === 0) return 0;
-           return platformHistory[platformHistory.length - 1].diagnostics;
+          if (!platformHistory || platformHistory.length === 0) return 0;
+          return platformHistory[platformHistory.length - 1].diagnostics;
         };
 
         const activeUsers = platformUsage?.usersActive ?? 0;
@@ -509,79 +753,88 @@ export default function Relatorios() {
           totalClients: totalClients,
           activeClients: overviewData?.users?.active ?? 0,
           newClientsThisMonth: getLastMonthNetNew(),
-          clientsNeedingSupport: (clientsTop || []).filter(c => (c.engagement || 0) < 50).length,
+          clientsNeedingSupport: (clientsTop || []).filter((c) => (c.engagement || 0) < 50).length,
           averageEngagement: engagementRate,
           totalDiagnostics: totalDiagnostics,
           diagnosticsThisMonth: getDiagnosticsThisMonth(),
           avgDiagnosticsPerClient: totalClients > 0 ? Number((totalDiagnostics / totalClients).toFixed(1)) : 0,
-          qualityScore: Math.round((((overviewData?.diagnostics?.completed ?? 0) / Math.max(overviewData?.diagnostics?.total ?? 1, 1)) * 100)),
-          supportTickets: 0, 
-          avgResponseTime: 0, 
+          qualityScore: Math.round(
+            (((overviewData?.diagnostics?.completed ?? 0) / Math.max(overviewData?.diagnostics?.total ?? 1, 1)) * 100),
+          ),
+          supportTickets: 0,
+          avgResponseTime: 0,
           topPerformingClients: (clientsTop || []).map((c) => ({
             name: c.companyName,
             company: c.companyName,
             diagnostics: Number(c.diagnostics || 0),
             engagement: Number(c.engagement || 0),
             lastActivity: c.lastActivity || new Date().toISOString(),
-            planCompletion: 0, 
-            status: c.status ? (c.status as 'excellent' | 'good' | 'needs_attention') : (Number(c.engagement || 0) >= 90 ? 'excellent' : Number(c.engagement || 0) >= 70 ? 'good' : 'needs_attention'),
+            planCompletion: 0,
+            status: c.status
+              ? (c.status as 'excellent' | 'good' | 'needs_attention')
+              : Number(c.engagement || 0) >= 90
+                ? 'excellent'
+                : Number(c.engagement || 0) >= 70
+                  ? 'good'
+                  : 'needs_attention',
           })),
-          platformUsage: (platformHistory || []).map((d) => ({ 
-            month: new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), 
-            diagnostics: d.diagnostics, 
-            activeUsers: d.sessions, 
-            engagement: d.sessions 
+          platformUsage: (platformHistory || []).map((d) => ({
+            month: new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+            diagnostics: d.diagnostics,
+            activeUsers: d.sessions,
+            engagement: d.sessions,
           })),
           clientsHistory: (clientsHistory || []).map((d, i, arr) => {
-            const prev = i > 0 ? arr[i-1] : null;
+            const prev = i > 0 ? arr[i - 1] : null;
             const netChange = prev ? d.activeClients - prev.activeClients : 0;
-            return { 
-              month: new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), 
-              active: d.activeClients, 
-              new: Math.max(0, netChange), 
-              churned: Math.max(0, -netChange) 
+            return {
+              month: new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+              active: d.activeClients,
+              new: Math.max(0, netChange),
+              churned: Math.max(0, -netChange),
             };
           }),
           diagnosticQuality: [
             { category: 'Clareza', avgScore: 4.8, totalDiagnostics: 150, trend: 'up' },
             { category: 'Abrangência', avgScore: 4.5, totalDiagnostics: 150, trend: 'stable' },
             { category: 'Utilidade', avgScore: 4.9, totalDiagnostics: 150, trend: 'up' },
-            { category: 'Tempo de Resposta', avgScore: 4.2, totalDiagnostics: 150, trend: 'down' }
+            { category: 'Tempo de Resposta', avgScore: 4.2, totalDiagnostics: 150, trend: 'down' },
           ],
-          supportMetrics: { 
-            openTickets: 12, 
-            resolvedTickets: 45, 
-            avgResolutionTime: 4.5, 
-            clientSatisfaction: 4.7 
+          supportMetrics: {
+            openTickets: 12,
+            resolvedTickets: 45,
+            avgResolutionTime: 4.5,
+            clientSatisfaction: 4.7,
           },
           supportTicketTypes: [
             { type: 'Dúvidas sobre Diagnósticos', count: 12, percentage: 35 },
             { type: 'Problemas Técnicos', count: 8, percentage: 23 },
             { type: 'Solicitação de Recursos', count: 6, percentage: 18 },
             { type: 'Feedback do Sistema', count: 5, percentage: 15 },
-            { type: 'Outros', count: 3, percentage: 9 }
+            { type: 'Outros', count: 3, percentage: 9 },
           ],
         };
         return <AdminReports data={adminData} activeTab={activeTab} />;
       }
       case 'global': {
         const firstRev = financialHistory && financialHistory.length > 0 ? financialHistory[0].revenue : 0;
-        const lastRev = financialHistory && financialHistory.length > 0 ? financialHistory[financialHistory.length - 1].revenue : 0;
+        const lastRev =
+          financialHistory && financialHistory.length > 0 ? financialHistory[financialHistory.length - 1].revenue : 0;
         const growth = firstRev ? Math.round(((lastRev - firstRev) / firstRev) * 100) : 0;
         const totalDiags = platformUsage?.diagnosticsByStatus?.reduce((acc, d) => acc + (d.count || 0), 0) ?? 0;
-        
+
         const totalClients = overviewData?.users?.total ?? 0;
         const activeUsers = platformUsage?.usersActive ?? 0;
         const engagementRate = totalClients > 0 ? Math.round((activeUsers / totalClients) * 100) : 0;
 
         const clientsHistoryMapped = (clientsHistory || []).map((d, i, arr) => {
-          const prev = i > 0 ? arr[i-1] : null;
+          const prev = i > 0 ? arr[i - 1] : null;
           const netChange = prev ? d.activeClients - prev.activeClients : 0;
-          return { 
-            month: new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), 
-            active: d.activeClients, 
-            new: Math.max(0, netChange), 
-            churned: Math.max(0, -netChange) 
+          return {
+            month: new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+            active: d.activeClients,
+            new: Math.max(0, netChange),
+            churned: Math.max(0, -netChange),
           };
         });
 
@@ -591,9 +844,12 @@ export default function Relatorios() {
         const globalData: GlobalReportData = {
           mrr: financialSummary?.mrr ?? 0,
           totalRevenue: financialSummary?.revenue ?? 0,
-          churnRate: (financialSummary?.churnRate ?? 0),
-          ltv: (financialSummary?.churnRate && financialSummary?.churnRate > 0) ? (financialSummary?.mrr ?? 0) / financialSummary.churnRate : 0, 
-          cac: 0, 
+          churnRate: financialSummary?.churnRate ?? 0,
+          ltv:
+            financialSummary?.churnRate && financialSummary?.churnRate > 0
+              ? (financialSummary?.mrr ?? 0) / financialSummary.churnRate
+              : 0,
+          cac: 0,
           monthlyGrowth: growth,
           totalClients: totalClients,
           activeClients: overviewData?.users?.active ?? 0,
@@ -604,28 +860,28 @@ export default function Relatorios() {
           diagnosticsThisMonth: lastPlatformStats ? lastPlatformStats.diagnostics : 0,
           avgDiagnosticsPerClient: totalClients > 0 ? Number((totalDiags / totalClients).toFixed(1)) : 0,
           platformEngagement: engagementRate,
-          avgSessionTime: 0, 
+          avgSessionTime: 0,
           systemHealth: {
             uptime: 99.9,
             responseTime: 120,
             errorRate: 0.05,
-            supportTickets: 15
+            supportTickets: 15,
           },
           revenueHistory: (financialHistory || []).map((d) => {
             const dMonth = new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-            const clientStat = clientsHistoryMapped.find(c => c.month === dMonth);
-            return { 
-              month: dMonth, 
-              mrr: d.revenue, 
-              newClients: clientStat ? clientStat.new : 0, 
-              churn: clientStat ? clientStat.churned : 0 
+            const clientStat = clientsHistoryMapped.find((c) => c.month === dMonth);
+            return {
+              month: dMonth,
+              mrr: d.revenue,
+              newClients: clientStat ? clientStat.new : 0,
+              churn: clientStat ? clientStat.churned : 0,
             };
           }),
           clientsHistory: clientsHistoryMapped,
-          usageHistory: (platformHistory || []).map((d) => ({ 
-            month: new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), 
-            diagnostics: d.diagnostics, 
-            engagement: d.sessions 
+          usageHistory: (platformHistory || []).map((d) => ({
+            month: new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+            diagnostics: d.diagnostics,
+            engagement: d.sessions,
           })),
           topClients: (clientsTop || []).map((c) => ({
             name: c.companyName,
@@ -633,19 +889,23 @@ export default function Relatorios() {
             mrr: Number(c.revenue || 0),
             diagnostics: Number(c.diagnostics || 0),
             engagement: Number(c.engagement || 0),
-            joinDate: c.joinDate || new Date().toISOString(), 
+            joinDate: c.joinDate || new Date().toISOString(),
           })),
           allClients: (clientsTop || []).map((c) => ({
-             id: c.companyName, 
-             name: c.companyName,
-             company: c.companyName,
-             mrr: Number(c.revenue || 0),
-             diagnostics: Number(c.diagnostics || 0),
-             engagement: Number(c.engagement || 0),
-             joinDate: c.joinDate || new Date().toISOString(),
-             lastActivity: c.lastActivity || new Date().toISOString(),
-             status: c.status ? (c.status as "active" | "churned" | "at_risk") : (Number(c.engagement || 0) >= 50 ? 'active' : 'at_risk'),
-             planType: 'basic'
+            id: c.companyName,
+            name: c.companyName,
+            company: c.companyName,
+            mrr: Number(c.revenue || 0),
+            diagnostics: Number(c.diagnostics || 0),
+            engagement: Number(c.engagement || 0),
+            joinDate: c.joinDate || new Date().toISOString(),
+            lastActivity: c.lastActivity || new Date().toISOString(),
+            status: c.status
+              ? (c.status as 'active' | 'churned' | 'at_risk')
+              : Number(c.engagement || 0) >= 50
+                ? 'active'
+                : 'at_risk',
+            planType: 'basic',
           })),
         };
         return <GlobalReports data={globalData} activeTab={activeTab} />;
@@ -679,7 +939,7 @@ export default function Relatorios() {
           { 
             label: "Exportar", 
             icon: Download, 
-            onClick: () => console.log('Exportando relatórios...'),
+            onClick: exportExcel,
             variant: 'primary' as const
           }
         ]}
@@ -2812,6 +3072,11 @@ function GlobalReports({ data, activeTab }: { data: GlobalReportData; activeTab:
     const totalTransactionPages = Math.ceil(totalTransactions / transactionsPerPage);
     const startTransactionIndex = (transactionsPage - 1) * transactionsPerPage;
     const paginatedTransactions = data.transactionHistory?.slice(startTransactionIndex, startTransactionIndex + transactionsPerPage) || [];
+    const ltvCacRaw = data.cac > 0 ? data.ltv / data.cac : null;
+    const ltvCacText = ltvCacRaw != null && Number.isFinite(ltvCacRaw) ? `${ltvCacRaw.toFixed(1)}:1` : '—';
+    const paybackRaw =
+      data.cac > 0 && data.totalClients > 0 && data.mrr > 0 ? data.cac / (data.mrr / data.totalClients) : null;
+    const paybackText = paybackRaw != null && Number.isFinite(paybackRaw) ? `${Math.round(paybackRaw)}` : '—';
 
     return (
       <div className="space-y-6">
@@ -2841,7 +3106,7 @@ function GlobalReports({ data, activeTab }: { data: GlobalReportData; activeTab:
             <CardContent className="p-4">
               <div className="text-center">
                 <Target className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-purple-800">{(data.ltv / data.cac).toFixed(1)}:1</p>
+                <p className="text-2xl font-bold text-purple-800">{ltvCacText}</p>
                 <p className="text-sm text-purple-600">Ratio LTV:CAC</p>
               </div>
             </CardContent>
@@ -2851,7 +3116,7 @@ function GlobalReports({ data, activeTab }: { data: GlobalReportData; activeTab:
             <CardContent className="p-4">
               <div className="text-center">
                 <Calendar className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-orange-800">{Math.round(data.cac / (data.mrr / data.totalClients))}</p>
+                <p className="text-2xl font-bold text-orange-800">{paybackText}</p>
                 <p className="text-sm text-orange-600">Meses Payback</p>
               </div>
             </CardContent>

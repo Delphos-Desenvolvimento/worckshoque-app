@@ -20,6 +20,7 @@ import NotFound from "./pages/NotFound";
 import Questionarios from "./components/common/Questionarios";
 import MeusQuestionarios from "./components/user/MeusQuestionarios";
 import Diagnosticos from "./components/user/Diagnosticos";
+import MeusDiagnosticos from "./components/user/MeusDiagnosticos";
 import PlanosAcaoV2 from "./components/user/PlanosAcaoV2";
 import DetalhesPlanoAcao from "./components/user/DetalhesPlanoAcao";
 // import Gamificacao from "./components/user/Gamificacao";
@@ -46,6 +47,7 @@ import QuestionariosGlobais from "./components/master/QuestionariosGlobais";
 import PlanosConquistasGlobais from "./components/master/PlanosConquistasGlobais";
 import Financeiro from "./components/master/Financeiro";
 import DiagnosticosGlobais from "./components/master/DiagnosticosGlobais";
+import Empresas from "./components/master/Empresas";
 
 // Common Pages
 import Configuracoes from "./components/common/Configuracoes";
@@ -221,6 +223,7 @@ const AppWithAuth = () => {
               {/* User Routes */}
               <Route path="/questionarios" element={<DashboardLayout><Questionarios /></DashboardLayout>} />
               <Route path="/meus-questionarios" element={<DashboardLayout><MeusQuestionarios /></DashboardLayout>} />
+              <Route path="/meus-diagnosticos" element={<DashboardLayout><MeusDiagnosticos /></DashboardLayout>} />
               <Route path="/diagnosticos" element={<DashboardLayout><Diagnosticos /></DashboardLayout>} />
               <Route path="/planos-acao" element={<DashboardLayout><PlanosAcaoV2 /></DashboardLayout>} />
               <Route path="/planos-acao/:id" element={<DashboardLayout><DetalhesPlanoAcao /></DashboardLayout>} />
@@ -242,6 +245,7 @@ const AppWithAuth = () => {
               {/* Master Routes */}
               <Route path="/master-dashboard" element={<DashboardLayout><MasterDashboard /></DashboardLayout>} />
               <Route path="/perfis-permissoes" element={<DashboardLayout><PerfisPermissoes /></DashboardLayout>} />
+              <Route path="/empresas" element={<DashboardLayout><Empresas /></DashboardLayout>} />
               <Route path="/questionarios-globais" element={<DashboardLayout><QuestionariosGlobais /></DashboardLayout>} />
               <Route path="/diagnosticos-globais" element={<DashboardLayout><DiagnosticosGlobais /></DashboardLayout>} />
               <Route path="/planos-conquistas-globais" element={<DashboardLayout><PlanosConquistasGlobais /></DashboardLayout>} />

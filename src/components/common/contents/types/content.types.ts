@@ -4,7 +4,16 @@ export interface Content {
   id: string;
   title: string;
   description: string;
-  type: 'article' | 'video' | 'infographic' | 'document' | 'link';
+  type:
+    | 'article'
+    | 'video'
+    | 'infographic'
+    | 'document'
+    | 'link'
+    | 'exercise'
+    | 'checklist'
+    | 'questionnaire'
+    | 'action_plan';
   category: string;
   content?: string;
   metadata: {

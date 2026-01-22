@@ -19,7 +19,6 @@ import {
   AlertCircle,
   CheckCircle,
   Shield,
-  X,
   Loader2
 } from 'lucide-react';
 import { api, SessionExpiredError } from '@/lib/api';
@@ -69,8 +68,37 @@ export default function NotificationCenter({ className = "" }: NotificationCente
     });
 
     socket.on('notification', (newNotification: Notification) => {
-      setNotifications((prev) => [newNotification, ...prev]);
-      setUnreadCount((prev) => prev + 1);
+      setNotifications((prev) => {
+        const existingIndex = prev.findIndex((n) => n.id === newNotification.id);
+        if (existingIndex !== -1) {
+          const existing = prev[existingIndex];
+          const nextIsRead = Boolean(existing.is_read || newNotification.is_read);
+
+          if (!existing.is_read && nextIsRead) {
+            setUnreadCount((count) => Math.max(0, count - 1));
+          }
+
+          if (nextIsRead) {
+            return prev.filter((n) => n.id !== newNotification.id);
+          }
+
+          const merged: Notification = {
+            ...existing,
+            ...newNotification,
+            is_read: nextIsRead,
+            read_at: existing.read_at ?? newNotification.read_at,
+          };
+
+          const next = [...prev];
+          next[existingIndex] = merged;
+          return next;
+        }
+
+        if (newNotification.is_read) return prev;
+
+        setUnreadCount((count) => count + 1);
+        return [newNotification, ...prev];
+      });
     });
 
     return () => {
@@ -94,8 +122,9 @@ export default function NotificationCenter({ className = "" }: NotificationCente
       ]);
 
       if (notificationsResponse.status === 'fulfilled' && notificationsResponse.value.ok) {
-        const notificationsData = await notificationsResponse.value.json();
-        setNotifications(notificationsData);
+        const notificationsData: unknown = await notificationsResponse.value.json();
+        const list = Array.isArray(notificationsData) ? (notificationsData as Notification[]) : [];
+        setNotifications(list.filter((n) => !n.is_read));
       }
 
       if (countResponse.status === 'fulfilled' && countResponse.value.ok) {
@@ -116,13 +145,7 @@ export default function NotificationCenter({ className = "" }: NotificationCente
       const response = await api.put(`/notifications/${notificationId}/read`);
       
       if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif.id === notificationId 
-              ? { ...notif, is_read: true, read_at: new Date().toISOString() }
-              : notif
-          )
-        );
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (error) {
@@ -136,13 +159,7 @@ export default function NotificationCenter({ className = "" }: NotificationCente
       const response = await api.put('/notifications/read-all');
       
       if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => ({ 
-            ...notif, 
-            is_read: true, 
-            read_at: new Date().toISOString() 
-          }))
-        );
+        setNotifications([]);
         setUnreadCount(0);
       }
     } catch (error) {
@@ -185,13 +202,33 @@ export default function NotificationCenter({ className = "" }: NotificationCente
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityClasses = (
+    priority: Notification['priority'],
+    isRead: boolean,
+  ) => {
+    const opacity = isRead ? '60' : '100';
+    const darkOpacity = isRead ? '15' : '35';
     switch (priority) {
-      case 'urgent': return 'border-l-red-500 bg-red-50';
-      case 'high': return 'border-l-orange-500 bg-orange-50';
-      case 'medium': return 'border-l-blue-500 bg-blue-50';
-      case 'low': return 'border-l-gray-500 bg-gray-50';
-      default: return 'border-l-gray-300 bg-gray-50';
+      case 'urgent':
+        return `border-l-red-500 bg-red-50/${opacity} dark:bg-red-950/${darkOpacity}`;
+      case 'high':
+        return `border-l-orange-500 bg-orange-50/${opacity} dark:bg-orange-950/${darkOpacity}`;
+      case 'medium':
+        return `border-l-blue-500 bg-blue-50/${opacity} dark:bg-blue-950/${darkOpacity}`;
+      case 'low':
+        return `border-l-zinc-400 bg-zinc-50/${opacity} dark:bg-zinc-950/${darkOpacity}`;
+      default:
+        return `border-l-zinc-300 bg-zinc-50/${opacity} dark:bg-zinc-950/${darkOpacity}`;
+    }
+  };
+
+  const formatPriorityLabel = (priority: Notification['priority']) => {
+    switch (priority) {
+      case 'urgent': return 'Urgente';
+      case 'high': return 'Alta';
+      case 'medium': return 'Média';
+      case 'low': return 'Baixa';
+      default: return priority;
     }
   };
 
@@ -270,8 +307,8 @@ export default function NotificationCenter({ className = "" }: NotificationCente
                 <div
                   key={notification.id}
                   className={`p-3 mb-2 rounded-lg border-l-4 cursor-pointer hover:shadow-sm transition-shadow ${
-                    getPriorityColor(notification.priority)
-                  } ${!notification.is_read ? 'bg-opacity-100' : 'bg-opacity-50'}`}
+                    getPriorityClasses(notification.priority, notification.is_read)
+                  }`}
                   onClick={() => !notification.is_read && markAsRead(notification.id)}
                 >
                   <div className="flex items-start justify-between">
@@ -298,7 +335,7 @@ export default function NotificationCenter({ className = "" }: NotificationCente
                             {formatTimeAgo(notification.created_at)}
                           </span>
                           <Badge variant="outline" className="text-xs">
-                            {notification.priority}
+                            {formatPriorityLabel(notification.priority)}
                           </Badge>
                         </div>
                       </div>

@@ -106,6 +106,13 @@ export const PERMISSION_MAPPING = {
       description: 'Gerenciar perfis e permissões'
     },
 
+    // Empresas
+    'empresa.view': {
+      title: 'Empresas',
+      url: '/empresas',
+      description: 'Gerenciar empresas'
+    },
+
     // Relatórios
     'relatorio.view': {
       title: 'Relatórios & Métricas',
@@ -383,6 +390,7 @@ export const PERMISSION_MAPPING = {
     '/master-dashboard': 'dashboard.master.view',
     '/questionarios': 'questionario.view',
     '/meus-questionarios': 'questionario.view',
+    '/meus-diagnosticos': 'diagnostico.view',
     '/diagnosticos': 'diagnostico.view',
     '/diagnosticos-globais': 'diagnostico.global',
     '/planos-acao': 'plano.view',
@@ -395,6 +403,7 @@ export const PERMISSION_MAPPING = {
     '/gestao-planos': 'dashboard.admin.view',
     '/respostas-equipe': 'questionario.equipe',
     '/perfis-permissoes': 'permissao.manage',
+    '/empresas': 'empresa.view',
     '/relatorios': 'relatorio.view',
     '/notificacoes': 'notification.view',
     '/financeiro': 'financeiro.manage',
@@ -432,19 +441,25 @@ type PageProtection = typeof PERMISSION_MAPPING.PAGES;
 // Helper para obter permissão de uma página
 export function getPagePermission(path: string): string | null {
   const normalizedPath = (() => {
-    if (path.startsWith('/planos-acao/')) {
+    const trimmedPath =
+      path !== '/' ? path.replace(/\/+$/, '') || '/' : '/';
+
+    if (trimmedPath.startsWith('/planos-acao/')) {
       return '/planos-acao/:id';
     }
-    if (path.startsWith('/conteudos/')) {
-      if (path.endsWith('/editar')) {
+    if (trimmedPath === '/conteudos') {
+      return '/conteudos';
+    }
+    if (trimmedPath.startsWith('/conteudos/')) {
+      if (trimmedPath.endsWith('/editar')) {
         return '/conteudos/:id/editar';
       }
-      if (path.endsWith('/novo')) {
+      if (trimmedPath.endsWith('/novo')) {
         return '/conteudos/novo';
       }
       return '/conteudos/:id';
     }
-    return path;
+    return trimmedPath;
   })();
   return PERMISSION_MAPPING.PAGES[normalizedPath as keyof PageProtection] || null;
 }

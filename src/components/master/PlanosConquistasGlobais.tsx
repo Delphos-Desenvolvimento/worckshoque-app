@@ -488,7 +488,12 @@ export default function PlanosConquistasGlobais() {
                     />
                   </div>
                 </div>
-                <Select value={filterCategoria} onValueChange={(value: string) => setFilterCategoria(value)}>
+                <Select
+                  value={filterCategoria}
+                  onValueChange={(value) =>
+                    setFilterCategoria(value as 'all' | PlanoAcao['categoria'])
+                  }
+                >
                   <SelectTrigger className="w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue />
@@ -503,7 +508,12 @@ export default function PlanosConquistasGlobais() {
                     <SelectItem value="carreira">Carreira</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterNivel} onValueChange={(value: string) => setFilterNivel(value)}>
+                <Select
+                  value={filterNivel}
+                  onValueChange={(value) =>
+                    setFilterNivel(value as 'all' | PlanoAcao['nivel'])
+                  }
+                >
                   <SelectTrigger className="w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue />
@@ -516,7 +526,12 @@ export default function PlanosConquistasGlobais() {
                     <SelectItem value="expert">Expert</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filterStatus} onValueChange={(value: string) => setFilterStatus(value)}>
+                <Select
+                  value={filterStatus}
+                  onValueChange={(value) =>
+                    setFilterStatus(value as 'all' | PlanoAcao['status'])
+                  }
+                >
                   <SelectTrigger className="w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue />
@@ -930,7 +945,6 @@ export default function PlanosConquistasGlobais() {
     </div>
   );
 }
-
 
 
 

@@ -349,7 +349,10 @@ export default function PerfisPermissoes() {
       }
       setUsersError(null);
 
-      const response = await api.get('/auth/users');
+      const params = new URLSearchParams();
+      params.set('page', '1');
+      params.set('limit', '1000');
+      const response = await api.get(`/auth/users?${params.toString()}`);
       
       if (!response.ok) {
         if (response.status === 0 || response.status >= 500) {
@@ -364,7 +367,19 @@ export default function PerfisPermissoes() {
         throw new Error('Resposta do servidor não é JSON válido - verifique se o backend está rodando');
       }
 
-      const apiUsers: ApiUser[] = await response.json();
+      const raw = await response.json();
+      const apiUsers: ApiUser[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray((raw as { data?: unknown }).data)
+          ? ((raw as { data: ApiUser[] }).data ?? [])
+          : Array.isArray((raw as { users?: unknown }).users)
+            ? ((raw as { users: ApiUser[] }).users ?? [])
+            : [];
+
+      if (!Array.isArray(apiUsers)) {
+        throw new Error('Formato de resposta inesperado ao carregar usuários');
+      }
+
       const formattedUsers = apiUsers.map(mapApiUserToFormattedUser);
       
       setUsuarios(formattedUsers);

@@ -136,7 +136,7 @@ export default function Notificacoes() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("todas");
   const [filterPriority, setFilterPriority] = useState("todas");
-  const [filterStatus, setFilterStatus] = useState("todas");
+  const [filterStatus, setFilterStatus] = useState("nao_lidas");
 
   // Estados de paginação
   const [currentPage, setCurrentPage] = useState(1);
@@ -512,11 +512,10 @@ export default function Notificacoes() {
     
     const matchesType = filterType === "todas" || notification.type === filterType;
     const matchesPriority = filterPriority === "todas" || notification.priority === filterPriority;
-    const matchesStatus = filterStatus === "todas" || 
-                         (filterStatus === "lidas" && notification.is_read) ||
-                         (filterStatus === "nao_lidas" && !notification.is_read);
+    const isArchivedView = filterStatus === "arquivadas";
+    const visibleByStatus = isArchivedView ? notification.is_read : !notification.is_read;
 
-    return matchesSearch && matchesType && matchesPriority && matchesStatus;
+    return matchesSearch && matchesType && matchesPriority && visibleByStatus;
   });
 
   // Calcular paginação
@@ -608,11 +607,16 @@ export default function Notificacoes() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'border-l-red-500 bg-red-50';
-      case 'high': return 'border-l-orange-500 bg-orange-50';
-      case 'medium': return 'border-l-blue-500 bg-blue-50';
-      case 'low': return 'border-l-gray-500 bg-gray-50';
-      default: return 'border-l-gray-300 bg-gray-50';
+      case 'urgent':
+        return 'border-l-red-500 bg-red-50/80 dark:bg-red-950/30';
+      case 'high':
+        return 'border-l-orange-500 bg-orange-50/80 dark:bg-orange-950/30';
+      case 'medium':
+        return 'border-l-blue-500 bg-blue-50/80 dark:bg-blue-950/30';
+      case 'low':
+        return 'border-l-slate-400 bg-slate-50/80 dark:bg-slate-900/40';
+      default:
+        return 'border-l-border bg-card';
     }
   };
 
@@ -699,7 +703,7 @@ export default function Notificacoes() {
                     <SelectContent>
                       <SelectItem value="todas">Todas</SelectItem>
                       <SelectItem value="nao_lidas">Não Lidas</SelectItem>
-                      <SelectItem value="lidas">Lidas</SelectItem>
+                      <SelectItem value="arquivadas">Arquivadas</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -785,7 +789,7 @@ export default function Notificacoes() {
                   key={notification.id} 
                   className={`border-l-4 hover:shadow-md transition-shadow cursor-pointer ${
                     getPriorityColor(notification.priority)
-                  } ${!notification.is_read ? 'bg-opacity-100' : 'bg-opacity-50'}`}
+                  } ${!notification.is_read ? 'ring-1 ring-primary/10' : ''}`}
                   onClick={() => !notification.is_read && markAsRead(notification.id)}
                 >
                   <CardContent className="p-6">
@@ -855,7 +859,7 @@ export default function Notificacoes() {
                               )}
 
                               {notification.read_at && (
-                                <div className="flex items-center gap-1 text-green-600">
+                                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                                   <CheckCircle className="w-3 h-3" />
                                   <span>Lida em {new Date(notification.read_at).toLocaleDateString('pt-BR')}</span>
                                 </div>

@@ -5,12 +5,15 @@ import { MessageSquare, X, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ChatMessage, AgentResponsePayload } from './useAgentChatStore';
 import { useAuthStore } from '@/stores/authStore';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function AgentChatWidget() {
   const { open, openChat, closeChat, messages, addUserMessage, addAgentResponse } = useAgentChatStore();
   const [input, setInput] = useState('');
   const [context, setContext] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [lastSeenCount, setLastSeenCount] = useState(0);
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
 
@@ -19,6 +22,12 @@ export default function AgentChatWidget() {
       getAgentContext().then(setContext).catch((e) => console.error(e));
     }
   }, [open, context]);
+
+  useEffect(() => {
+    if (open) {
+      setLastSeenCount(messages.length);
+    }
+  }, [open, messages.length]);
 
   const onSend = async () => {
     if (!input.trim()) return;
@@ -85,16 +94,39 @@ export default function AgentChatWidget() {
 
   return (
     <>
-      <button
-        onClick={open ? closeChat : openChat}
-        className="fixed bottom-6 right-6 z-50 p-3 rounded-full bg-yellow-500 text-slate-900 shadow-lg"
-        aria-label="Agente WorkChoque"
-      >
-        <MessageSquare className="w-6 h-6" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            onClick={open ? closeChat : openChat}
+            size="icon"
+            className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95"
+            aria-label={open ? 'Fechar agente' : 'Abrir agente'}
+            aria-expanded={open}
+            aria-controls="agent-chat-panel"
+          >
+            <span className="relative inline-flex items-center justify-center">
+              {open ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <MessageSquare className="h-5 w-5" />
+              )}
+              {!open && messages.length > lastSeenCount ? (
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive" />
+              ) : null}
+            </span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          {open ? 'Fechar IA' : 'Abrir IA'}
+        </TooltipContent>
+      </Tooltip>
 
       {open && (
-        <div className="fixed bottom-20 right-6 z-50 w-96 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl flex flex-col">
+        <div
+          id="agent-chat-panel"
+          className="fixed bottom-20 right-6 z-50 w-[min(24rem,calc(100vw-3rem))] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl flex flex-col"
+        >
           <div className="flex items-center justify-between p-3 border-b border-slate-700">
             <div className="font-semibold text-white">Agente WorkChoque</div>
             <button onClick={closeChat} className="text-slate-300 hover:text-white">

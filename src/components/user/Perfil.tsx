@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,16 +7,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import PageHeader from "@/components/common/PageHeader";
-import { User, Mail, Building, Calendar, Edit, Save, X } from "lucide-react";
+import { User, Mail, Building, Calendar, Save, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function Perfil() {
   const { user, setUser } = useAuthStore();
-  const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const hasLocalChangesRef = useRef(false);
   const [stats, setStats] = useState({
     diagnosticos: 0,
     planosAtivos: 0,
@@ -113,8 +113,10 @@ export default function Perfil() {
           dataContratacao: profileHireDate || baseData.dataContratacao,
         };
 
-        setFormData(merged);
         setInitialData(merged);
+        if (!hasLocalChangesRef.current) {
+          setFormData(merged);
+        }
       } catch (error) {
         const err = error as { message?: string };
         toast.error(err.message || 'Erro ao carregar perfil.');
@@ -201,7 +203,7 @@ export default function Perfil() {
       }
 
       toast.success('Perfil atualizado com sucesso.');
-      setIsEditing(false);
+      hasLocalChangesRef.current = false;
     } catch (error) {
       const err = error as { message?: string };
       toast.error(err.message || 'Erro ao salvar perfil.');
@@ -212,7 +214,7 @@ export default function Perfil() {
 
   const handleCancel = () => {
     setFormData(initialData);
-    setIsEditing(false);
+    hasLocalChangesRef.current = false;
   };
 
   return (
@@ -222,16 +224,21 @@ export default function Perfil() {
         title="Meu Perfil (Atualizado)"
         description="Gerencie suas informações pessoais e profissionais"
         icon={User}
-        actions={
-          !isEditing
-            ? [
-                { label: 'Editar Perfil', icon: Edit, onClick: () => setIsEditing(true) }
-              ]
-            : [
-                { label: 'Salvar', icon: Save, onClick: handleSave },
-                { label: 'Cancelar', icon: X, variant: 'secondary', onClick: handleCancel }
-              ]
-        }
+        actions={[
+          {
+            label: saving ? 'Salvando...' : 'Salvar',
+            icon: Save,
+            onClick: handleSave,
+            disabled: saving,
+          },
+          {
+            label: 'Reverter',
+            icon: X,
+            variant: 'secondary',
+            onClick: handleCancel,
+            disabled: saving,
+          },
+        ]}
       />
 
       <div className="container mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -249,15 +256,13 @@ export default function Perfil() {
                     {user?.name?.split(' ').map(n => n[0]).join('') || 'JS'}
                   </AvatarFallback>
                 </Avatar>
-                {isEditing && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => toast.info('Funcionalidade em desenvolvimento')}
-                  >
-                    Alterar Foto
-                  </Button>
-                )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => toast.info('Funcionalidade em desenvolvimento')}
+              >
+                Alterar Foto
+              </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -266,8 +271,10 @@ export default function Perfil() {
                   <Input
                     id="nome"
                     value={formData.nome}
-                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    disabled={!isEditing}
+                    onChange={(e) => {
+                      hasLocalChangesRef.current = true;
+                      setFormData({ ...formData, nome: e.target.value });
+                    }}
                   />
                 </div>
 
@@ -277,8 +284,10 @@ export default function Perfil() {
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    disabled={!isEditing}
+                    onChange={(e) => {
+                      hasLocalChangesRef.current = true;
+                      setFormData({ ...formData, email: e.target.value });
+                    }}
                   />
                 </div>
 
@@ -287,8 +296,10 @@ export default function Perfil() {
                   <Input
                     id="telefone"
                     value={formData.telefone}
-                    onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                    disabled={!isEditing}
+                    onChange={(e) => {
+                      hasLocalChangesRef.current = true;
+                      setFormData({ ...formData, telefone: e.target.value });
+                    }}
                   />
                 </div>
 
@@ -297,8 +308,10 @@ export default function Perfil() {
                   <Input
                     id="cargo"
                     value={formData.cargo}
-                    onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
-                    disabled={!isEditing}
+                    onChange={(e) => {
+                      hasLocalChangesRef.current = true;
+                      setFormData({ ...formData, cargo: e.target.value });
+                    }}
                   />
                 </div>
 
@@ -307,8 +320,10 @@ export default function Perfil() {
                   <Input
                     id="departamento"
                     value={formData.departamento}
-                    onChange={(e) => setFormData({ ...formData, departamento: e.target.value })}
-                    disabled={!isEditing}
+                    onChange={(e) => {
+                      hasLocalChangesRef.current = true;
+                      setFormData({ ...formData, departamento: e.target.value });
+                    }}
                   />
                 </div>
 
@@ -318,8 +333,10 @@ export default function Perfil() {
                     id="dataContratacao"
                     type="date"
                     value={formData.dataContratacao}
-                    onChange={(e) => setFormData({ ...formData, dataContratacao: e.target.value })}
-                    disabled={!isEditing}
+                    onChange={(e) => {
+                      hasLocalChangesRef.current = true;
+                      setFormData({ ...formData, dataContratacao: e.target.value });
+                    }}
                   />
                 </div>
 
@@ -339,8 +356,10 @@ export default function Perfil() {
                 <Textarea
                   id="bio"
                   value={formData.bio}
-                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                  disabled={!isEditing}
+                  onChange={(e) => {
+                    hasLocalChangesRef.current = true;
+                    setFormData({ ...formData, bio: e.target.value });
+                  }}
                   rows={4}
                 />
               </div>

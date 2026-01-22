@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
   const normalized = rawApiUrl.replace(/[/.]+$/, '').replace(/\/+$/, '');
   const apiTarget = normalized
     ? normalized.replace(/\/api$/i, '')
-    : 'http://localhost:3000';
+    : 'http://localhost:3025';
 
   return {
     server: {
@@ -19,6 +19,12 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/socket.io': {
+          target: apiTarget,
+          ws: true,
           changeOrigin: true,
           secure: false,
         },

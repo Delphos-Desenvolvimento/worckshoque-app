@@ -69,11 +69,18 @@ const AdminDashboard = () => {
         if (res.ok) {
           const data = await res.json();
           if (data.achievements?.latest) {
-             data.achievements.latest = data.achievements.latest.map((a: RawAchievement) => ({
-               ...a,
-               unlockedAt: a.unlockedAt ? new Date(a.unlockedAt) : undefined
-             }));
-           }
+            const normalized: Achievement[] = data.achievements.latest.map((a: RawAchievement) => ({
+              ...a,
+              unlockedAt: a.unlockedAt ? new Date(a.unlockedAt) : undefined
+            }));
+
+            const uniqueById = new Map<string, Achievement>();
+            for (const achievement of normalized) {
+              if (!uniqueById.has(achievement.id)) uniqueById.set(achievement.id, achievement);
+            }
+
+            data.achievements.latest = Array.from(uniqueById.values());
+          }
           setStats(data);
         }
       } catch (error) {

@@ -827,7 +827,7 @@ export default function Questionarios() {
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
                   {canCreate 
-                    ? "Use o botão flutuante no canto inferior direito para criar questionários"
+                    ? "Use o botão \"Criar Questionário\" no topo da página para criar questionários"
                     : "Você não tem permissão para criar questionários. Entre em contato com um administrador."
                   }
                 </p>
@@ -1240,18 +1240,6 @@ export default function Questionarios() {
         </div>
       </ModalLayout>
 
-      {/* Botão Flutuante para Criar Questionário */}
-      {canCreate && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <Button
-            onClick={handleCreateQuestionnaire}
-            size="lg"
-            className="h-14 w-14 rounded-full bg-gradient-to-r from-primary via-primary/90 to-accent hover:from-primary/90 hover:via-primary/80 hover:to-accent/90 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110"
-          >
-            <Plus className="w-6 h-6" />
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

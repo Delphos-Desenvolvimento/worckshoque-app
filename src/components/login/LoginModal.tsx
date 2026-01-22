@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
+import { axiosInstance } from '@/lib/api';
 
 interface LoginModalProps {
   isOpen: boolean;

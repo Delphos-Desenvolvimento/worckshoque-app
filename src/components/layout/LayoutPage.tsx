@@ -35,6 +35,10 @@ function DashboardContent({ children }: DashboardLayoutProps) {
               '/planos-conquistas-globais',
               '/relatorios',
               '/financeiro',
+              '/notificacoes',
+              '/perfil',
+              '/configuracoes',
+              '/agente',
             ];
             if (currentPath.startsWith('/planos-acao/')) {
               return false;
@@ -46,9 +50,13 @@ function DashboardContent({ children }: DashboardLayoutProps) {
               '/admin-dashboard',
               '/gestao-usuarios',
               '/gestao-planos',
-              '/diagnosticos-equipe',
+              '/respostas-equipe',
               '/relatorios',
               '/conquistas-empresa',
+              '/notificacoes',
+              '/perfil',
+              '/configuracoes',
+              '/agente',
             ];
             if (currentPath.startsWith('/planos-acao/')) {
               return false;
@@ -63,12 +71,16 @@ function DashboardContent({ children }: DashboardLayoutProps) {
               '/meus-diagnosticos',
               '/questionarios',
               '/meus-questionarios',
+              '/diagnosticos',
               '/planos-acao',
               '/planos-acao/', // Inclui a rota base
               ...Array(10).fill(0).map((_, i) => `/planos-acao/${i+1}`), // Inclui exemplos de IDs
               '/gamificacao',
               '/relatorios',
-              '/perfil'
+              '/notificacoes',
+              '/perfil',
+              '/configuracoes',
+              '/agente',
             ];
             // Verifica se a rota começa com /planos-acao/
             if (currentPath.startsWith('/planos-acao/')) {

@@ -393,22 +393,6 @@ function UserProfileContent({ canEdit, setMessage }: { canEdit: boolean; setMess
     return () => clearTimeout(timer);
   }, []);
 
-  // Registrar tab no contexto pai
-  useEffect(() => {
-    tabsCtx?.registerTab('perfil', {
-      isDirty,
-      save: async () => { await handleSaveProfile(); },
-      reset: () => {
-        if (initialProfileRef.current) {
-          setProfileData(initialProfileRef.current);
-        }
-        setIsDirty(false);
-      },
-      requiredPermission: 'profile.edit'
-    });
-    return () => tabsCtx?.unregisterTab('perfil');
-  }, [isDirty, tabsCtx, handleSaveProfile]);
-
   const handleSaveProfile = useCallback(async () => {
     if (!canEdit) return;
     
@@ -426,6 +410,22 @@ function UserProfileContent({ canEdit, setMessage }: { canEdit: boolean; setMess
       setIsLoading(false);
     }
   }, [canEdit, setMessage]);
+
+  // Registrar tab no contexto pai
+  useEffect(() => {
+    tabsCtx?.registerTab('perfil', {
+      isDirty,
+      save: async () => { await handleSaveProfile(); },
+      reset: () => {
+        if (initialProfileRef.current) {
+          setProfileData(initialProfileRef.current);
+        }
+        setIsDirty(false);
+      },
+      requiredPermission: 'profile.edit'
+    });
+    return () => tabsCtx?.unregisterTab('perfil');
+  }, [isDirty, tabsCtx, handleSaveProfile]);
 
   const handleChangePassword = async () => {
     if (!canEdit) return;
@@ -786,22 +786,6 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
     return () => clearTimeout(t);
   }, []);
 
-  // Registrar tab no contexto pai
-  useEffect(() => {
-    tabsCtx?.registerTab('preferencias', {
-      isDirty,
-      save: async () => { await handleSavePreferences(); },
-      reset: () => {
-        if (initialPreferencesRef.current) {
-          setPreferences(initialPreferencesRef.current);
-        }
-        setIsDirty(false);
-      },
-      requiredPermission: 'preferences.edit'
-    });
-    return () => tabsCtx?.unregisterTab('preferencias');
-  }, [isDirty, tabsCtx, handleSavePreferences]);
-
   const handleSavePreferences = useCallback(async () => {
     if (!canEdit) return;
     
@@ -819,6 +803,22 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
       setIsLoading(false);
     }
   }, [canEdit, setMessage]);
+
+  // Registrar tab no contexto pai
+  useEffect(() => {
+    tabsCtx?.registerTab('preferencias', {
+      isDirty,
+      save: async () => { await handleSavePreferences(); },
+      reset: () => {
+        if (initialPreferencesRef.current) {
+          setPreferences(initialPreferencesRef.current);
+        }
+        setIsDirty(false);
+      },
+      requiredPermission: 'preferences.edit'
+    });
+    return () => tabsCtx?.unregisterTab('preferencias');
+  }, [isDirty, tabsCtx, handleSavePreferences]);
 
   const handleResetPreferences = useCallback(async () => {
     if (!canEdit) return;
@@ -3663,8 +3663,6 @@ function MasterMonitoringContent({ canEdit, setMessage }: { canEdit: boolean; se
 
 function MasterIntegrationsContent({ canEdit, setMessage }: { canEdit: boolean; setMessage: (msg: ConfigMessage | null) => void }) {
   const [integrations, setIntegrations] = useState({
-    slack: { enabled: false, webhook: '', channel: '' },
-    teams: { enabled: false, webhook: '' },
     email: { enabled: true, smtp: '' },
     api: { enabled: true, rateLimit: 1000 }
   });
@@ -3701,42 +3699,6 @@ function MasterIntegrationsContent({ canEdit, setMessage }: { canEdit: boolean; 
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="slackIntegration">Slack</Label>
-                <p className="text-sm text-muted-foreground">
-                  Integração com Slack para notificações
-                </p>
-              </div>
-              <Switch
-                id="slackIntegration"
-                checked={integrations.slack.enabled}
-                onCheckedChange={(checked) => setIntegrations(prev => ({
-                  ...prev,
-                  slack: { ...prev.slack, enabled: checked }
-                }))}
-                disabled={!canEdit}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="teamsIntegration">Microsoft Teams</Label>
-                <p className="text-sm text-muted-foreground">
-                  Integração com Microsoft Teams
-                </p>
-              </div>
-              <Switch
-                id="teamsIntegration"
-                checked={integrations.teams.enabled}
-                onCheckedChange={(checked) => setIntegrations(prev => ({
-                  ...prev,
-                  teams: { ...prev.teams, enabled: checked }
-                }))}
-                disabled={!canEdit}
-              />
-            </div>
-
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="emailIntegration">Email</Label>

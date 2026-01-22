@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -6,7 +6,16 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 
 // Tipos e Interfaces
-type ContentType = 'article' | 'video' | 'infographic' | 'document' | 'link';
+type ContentType =
+  | 'article'
+  | 'video'
+  | 'infographic'
+  | 'document'
+  | 'link'
+  | 'exercise'
+  | 'checklist'
+  | 'questionnaire'
+  | 'action_plan';
 type ContentStatus = 'draft' | 'published' | 'archived';
 
 interface Category {
@@ -281,7 +290,13 @@ const ContentManager = () => {
   };
 
   // Carregar conteúdos e categorias da API
-  const fetchContents = async () => {
+  const fetchContents = useCallback(async () => {
+    if (!isAdmin) {
+      setContents([]);
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       // Buscar conteúdos reais do backend
@@ -379,11 +394,11 @@ const ContentManager = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
 
   useEffect(() => {
-    fetchContents();
-  }, []);
+    void fetchContents();
+  }, [fetchContents]);
 
   const handleDeleteCategory = async (id: string) => {
     const categoryName = categories.find(cat => cat.id === id)?.name || 'esta categoria';
@@ -691,6 +706,15 @@ const ContentManager = () => {
     );
   }
 
+  const publishedContentsCount = contents.filter((c) => c.status === 'published').length;
+  const engagedPublishedContentsCount = contents.filter(
+    (c) => c.status === 'published' && (c.views > 0 || c.downloads > 0),
+  ).length;
+  const averageEngagementPercent =
+    publishedContentsCount > 0
+      ? Math.round((engagedPublishedContentsCount / publishedContentsCount) * 100)
+      : 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -763,9 +787,9 @@ const ContentManager = () => {
             <BarChart2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">87%</div>
+            <div className="text-2xl font-bold">{averageEngagementPercent}%</div>
             <p className="text-xs text-muted-foreground">
-              +5% em relação ao mês passado
+              {engagedPublishedContentsCount} de {publishedContentsCount} conteúdos publicados com interação
             </p>
           </CardContent>
         </Card>

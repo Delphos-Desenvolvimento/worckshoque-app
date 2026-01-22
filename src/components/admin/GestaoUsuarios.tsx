@@ -65,7 +65,7 @@ interface FormattedUser {
   cargo: string;
   departamento: string;
   status: 'Ativo' | 'Inativo';
-  ultimoLogin: string;
+  ultimoLogin: string | null;
   role: 'master' | 'admin' | 'user';
   permissions: string[];
   created_at: string;
@@ -86,6 +86,13 @@ export default function GestaoUsuarios() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  const formatPtBrDate = (value: string | null | undefined) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString('pt-BR');
+  };
 
   // Função para buscar usuários da API
   const fetchUsuarios = useCallback(async (showRefreshLoader = false) => {
@@ -146,7 +153,7 @@ export default function GestaoUsuarios() {
         cargo: user.profile?.position || (user.role === 'master' ? 'Master' : user.role === 'admin' ? 'Administrador' : 'Usuário'),
         departamento: user.profile?.department || (user.company?.name || (user.company_id ? 'Empresa' : 'Geral')),
         status: user.is_active ? 'Ativo' : 'Inativo',
-        ultimoLogin: user.last_login ? new Date(user.last_login).toLocaleDateString('pt-BR') : 'Nunca logou',
+        ultimoLogin: user.last_login,
         role: user.role,
         permissions: user.permissions || [],
         created_at: user.created_at
@@ -370,15 +377,14 @@ export default function GestaoUsuarios() {
                             <div className="flex items-center gap-4 text-sm">
                   <div className="text-center">
                                 <p className="text-sm text-muted-foreground">Criado em</p>
-                                <p className="font-medium">{new Date(usuario.created_at).toLocaleDateString('pt-BR')}</p>
+                                <p className="font-medium">{formatPtBrDate(usuario.created_at) || 'Data inválida'}</p>
                   </div>
                   <div className="text-center">
                                 <p className="text-sm text-muted-foreground">Último Login</p>
                                 <p className="font-medium">
-                                  {usuario.ultimoLogin === 'Nunca logou' ? 
-                                    'Nunca logou' : 
-                                    new Date(usuario.ultimoLogin).toLocaleDateString('pt-BR')
-                                  }
+                                  {usuario.ultimoLogin
+                                    ? (formatPtBrDate(usuario.ultimoLogin) || 'Data inválida')
+                                    : 'Nunca logou'}
                                 </p>
                   </div>
                   <div className="text-center">
@@ -446,7 +452,7 @@ export default function GestaoUsuarios() {
 
                           <div className="flex items-center gap-6 text-sm text-muted-foreground">
                             <div className="text-center">
-                              <p className="font-medium">{new Date(usuario.created_at).toLocaleDateString('pt-BR')}</p>
+                              <p className="font-medium">{formatPtBrDate(usuario.created_at) || 'Data inválida'}</p>
                               <p className="text-xs">Criado em</p>
                             </div>
                             <div className="text-center">
@@ -455,10 +461,9 @@ export default function GestaoUsuarios() {
                             </div>
                             <div className="text-center">
                               <p className="font-medium">
-                                {usuario.ultimoLogin === 'Nunca logou' ? 
-                                  'Nunca logou' : 
-                                  new Date(usuario.ultimoLogin).toLocaleDateString('pt-BR')
-                                }
+                                {usuario.ultimoLogin
+                                  ? (formatPtBrDate(usuario.ultimoLogin) || 'Data inválida')
+                                  : 'Nunca logou'}
                               </p>
                               <p className="text-xs">Último Login</p>
                             </div>
@@ -542,13 +547,14 @@ export default function GestaoUsuarios() {
                             <span className="font-medium">{usuario.permissions.length}</span>
                           </TableCell>
                           <TableCell>
-                            {new Date(usuario.created_at).toLocaleDateString('pt-BR')}
+                            {formatPtBrDate(usuario.created_at) || 'Data inválida'}
                           </TableCell>
                           <TableCell>
-                            {usuario.ultimoLogin === 'Nunca logou' ? 
-                              <Badge variant="outline" className="text-muted-foreground">Nunca logou</Badge> : 
-                              new Date(usuario.ultimoLogin).toLocaleDateString('pt-BR')
-                            }
+                            {usuario.ultimoLogin ? (
+                              formatPtBrDate(usuario.ultimoLogin) || 'Data inválida'
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">Nunca logou</Badge>
+                            )}
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>

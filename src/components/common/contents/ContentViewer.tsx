@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Content } from './types/content.types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, Edit, Star, Share2, Download, Bookmark, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Edit, Star, Share2, Download, Bookmark, MessageSquare, ExternalLink } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 export const ContentViewer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -37,7 +39,7 @@ export const ContentViewer: React.FC = () => {
           type: data.type,
           category: data.category?.name || 'Geral',
           content: data.content,
-          metadata: data.metadata || {},
+          metadata: { ...(data.metadata || {}) },
           accessLevel: data.access_level,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
@@ -45,8 +47,6 @@ export const ContentViewer: React.FC = () => {
           status: data.status,
           views: data.views || 0,
           isFavorite: data.is_featured || false, // Usando is_featured como favorito por enquanto
-          // Campos opcionais
-          tags: data.metadata?.tags || [],
           progress: 0 // Progresso ainda não implementado no backend
         };
         

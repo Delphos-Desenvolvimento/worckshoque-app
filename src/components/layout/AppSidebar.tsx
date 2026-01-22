@@ -130,6 +130,10 @@ const menuConfig = [
         permission: 'permissao.manage' as Permission,
         icon: Shield 
       },
+      { 
+        permission: 'empresa.view' as Permission,
+        icon: Building 
+      },
     ]
   },
   {
