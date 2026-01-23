@@ -33,7 +33,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 
 // Interface para usuário da API
 interface ApiUser {
@@ -71,10 +88,19 @@ interface FormattedUser {
   created_at: string;
 }
 
+interface PermissionDto {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+}
+
 export default function GestaoUsuarios() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("todos");
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('table');
+  const { user, refreshUserPermissions } = useAuthStore();
   
   // Estados de paginação
   const [currentPage, setCurrentPage] = useState(1);
@@ -87,12 +113,57 @@ export default function GestaoUsuarios() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  const isMaster = user?.role === 'master';
+
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsError, setPermissionsError] = useState<string | null>(null);
+  const [permissionsByCategory, setPermissionsByCategory] = useState<Record<string, PermissionDto[]>>({});
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<FormattedUser | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'master' | 'admin' | 'user'>('user');
+  const [selectedPermissions, setSelectedPermissions] = useState<Record<string, boolean>>({});
+  const [savingEdits, setSavingEdits] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   const formatPtBrDate = (value: string | null | undefined) => {
     if (!value) return null;
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return null;
     return date.toLocaleDateString('pt-BR');
   };
+
+  const loadPermissions = useCallback(async () => {
+    if (!isMaster) return;
+    try {
+      setPermissionsLoading(true);
+      setPermissionsError(null);
+
+      const response = await api.get('/permissions');
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: Erro ao carregar permissões`);
+      }
+
+      const data: unknown = await response.json();
+      const list: PermissionDto[] = Array.isArray(data) ? (data as PermissionDto[]) : [];
+
+      const grouped: Record<string, PermissionDto[]> = {};
+      for (const p of list) {
+        const category = (p.category || p.key.split('.')[0] || 'outros').toLowerCase();
+        if (!grouped[category]) grouped[category] = [];
+        grouped[category].push(p);
+      }
+
+      const ordered = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
+      setPermissionsByCategory(Object.fromEntries(ordered));
+    } catch (err) {
+      console.error('Erro ao carregar permissões:', err);
+      setPermissionsError(err instanceof Error ? err.message : 'Erro ao carregar permissões');
+      setPermissionsByCategory({});
+    } finally {
+      setPermissionsLoading(false);
+    }
+  }, [isMaster]);
 
   // Função para buscar usuários da API
   const fetchUsuarios = useCallback(async (showRefreshLoader = false) => {
@@ -188,6 +259,81 @@ export default function GestaoUsuarios() {
 
     return () => clearTimeout(timeoutId);
   }, [fetchUsuarios]);
+
+  useEffect(() => {
+    loadPermissions();
+  }, [loadPermissions]);
+
+  const startEditingUser = (usuario: FormattedUser) => {
+    if (!isMaster) return;
+    setEditingUser(usuario);
+    setSelectedRole(usuario.role);
+    setEditError(null);
+
+    const initial: Record<string, boolean> = {};
+    for (const permissions of Object.values(permissionsByCategory)) {
+      for (const p of permissions) {
+        initial[p.key] = usuario.permissions.includes(p.key);
+      }
+    }
+
+    setSelectedPermissions(initial);
+    setEditOpen(true);
+  };
+
+  const togglePermission = (permissionKey: string) => {
+    setSelectedPermissions((prev) => ({
+      ...prev,
+      [permissionKey]: !prev[permissionKey],
+    }));
+  };
+
+  const saveUserEdits = async () => {
+    if (!editingUser) return;
+    try {
+      setSavingEdits(true);
+      setEditError(null);
+
+      const roleResponse = await api.put(`/auth/users/${editingUser.id}/role`, {
+        role: selectedRole,
+      });
+      if (!roleResponse.ok) {
+        throw new Error('Erro ao salvar role');
+      }
+
+      const activePermissions = Object.entries(selectedPermissions)
+        .filter(([, enabled]) => enabled)
+        .map(([key]) => key);
+
+      const permissionsResponse = await api.put(`/auth/users/${editingUser.id}/permissions`, {
+        permissions: activePermissions,
+      });
+      if (!permissionsResponse.ok) {
+        throw new Error('Erro ao salvar permissões');
+      }
+
+      setEditOpen(false);
+      setEditingUser(null);
+      setSelectedPermissions({});
+
+      await fetchUsuarios(true);
+      if (editingUser.id === user?.id) {
+        await refreshUserPermissions();
+      }
+    } catch (err) {
+      console.error('Erro ao salvar edições do usuário:', err);
+      setEditError(err instanceof Error ? err.message : 'Erro ao salvar edições');
+    } finally {
+      setSavingEdits(false);
+    }
+  };
+
+  const closeEditDialog = () => {
+    setEditOpen(false);
+    setEditingUser(null);
+    setSelectedPermissions({});
+    setEditError(null);
+  };
 
   // Calcular paginação (simplificado para server-side)
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -401,7 +547,7 @@ export default function GestaoUsuarios() {
                       </Button>
                     </DropdownMenuTrigger>
                             <DropdownMenuContent>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => startEditingUser(usuario)} disabled={!isMaster}>
                         <Edit className="w-4 h-4 mr-2" />
                         Editar
                       </DropdownMenuItem>
@@ -477,7 +623,7 @@ export default function GestaoUsuarios() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startEditingUser(usuario)} disabled={!isMaster}>
                               <Edit className="w-4 h-4 mr-2" />
                               Editar
                             </DropdownMenuItem>
@@ -564,7 +710,7 @@ export default function GestaoUsuarios() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => startEditingUser(usuario)} disabled={!isMaster}>
                                   <Edit className="w-4 h-4 mr-2" />
                                   Editar
                                 </DropdownMenuItem>
@@ -624,6 +770,88 @@ export default function GestaoUsuarios() {
       )}
 
       </div>
+
+      <Dialog open={editOpen} onOpenChange={(o) => (o ? setEditOpen(true) : closeEditDialog())}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>
+              {editingUser ? `${editingUser.name} • ${editingUser.email}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {editError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {editError}
+            </div>
+          ) : null}
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Role</div>
+              <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as 'master' | 'admin' | 'user')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Usuário</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="master">Master</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">Permissões</div>
+                <div className="text-xs text-muted-foreground">
+                  {Object.values(selectedPermissions).filter(Boolean).length} selecionadas
+                </div>
+              </div>
+
+              {permissionsLoading ? (
+                <div className="text-sm text-muted-foreground">Carregando permissões...</div>
+              ) : permissionsError ? (
+                <div className="text-sm text-red-600">{permissionsError}</div>
+              ) : (
+                <div className="max-h-[50vh] overflow-y-auto rounded-md border p-3 space-y-4">
+                  {Object.entries(permissionsByCategory).map(([category, permissions]) => (
+                    <div key={category} className="space-y-2">
+                      <div className="text-sm font-semibold capitalize">{category}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {permissions.map((p) => (
+                          <label key={p.key} className="flex items-start gap-2 rounded-md border p-2">
+                            <Checkbox
+                              checked={Boolean(selectedPermissions[p.key])}
+                              onCheckedChange={() => togglePermission(p.key)}
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium break-words">{p.name}</div>
+                              {p.description ? (
+                                <div className="text-xs text-muted-foreground break-words">{p.description}</div>
+                              ) : null}
+                              <div className="text-xs text-muted-foreground break-words">{p.key}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEditDialog} disabled={savingEdits}>
+              Cancelar
+            </Button>
+            <Button onClick={saveUserEdits} disabled={savingEdits || !editingUser}>
+              {savingEdits ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -30,8 +30,10 @@ export default function AgentChatWidget() {
   }, [open, messages.length]);
 
   const onSend = async () => {
-    if (!input.trim()) return;
-    addUserMessage(input);
+    const message = input.trim();
+    if (!message || loading) return;
+    setInput('');
+    addUserMessage(message);
     setLoading(true);
     try {
       if (!token) {
@@ -45,7 +47,7 @@ export default function AgentChatWidget() {
           follow_up_question: 'Deseja ir para a página de login?',
         });
       } else {
-        const resp = await sendAgentMessage(input);
+        const resp = await sendAgentMessage(message);
         addAgentResponse(resp);
       }
     } catch (e) {
@@ -61,7 +63,6 @@ export default function AgentChatWidget() {
       });
     } finally {
       setLoading(false);
-      setInput('');
     }
   };
 
@@ -140,10 +141,20 @@ export default function AgentChatWidget() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onSend();
+                }
+              }}
               placeholder="Digite sua mensagem..."
               className="flex-1 px-2 py-1 rounded bg-slate-800 text-white outline-none"
             />
-            <button onClick={onSend} disabled={loading} className="px-3 py-1 rounded bg-yellow-500 text-slate-900">
+            <button
+              onClick={onSend}
+              disabled={loading || !input.trim()}
+              className="px-3 py-1 rounded bg-yellow-500 text-slate-900"
+            >
               <Send className="w-4 h-4" />
             </button>
           </div>

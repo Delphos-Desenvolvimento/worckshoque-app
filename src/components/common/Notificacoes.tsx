@@ -432,13 +432,9 @@ export default function Notificacoes() {
       const response = await api.put('/notifications/read-all');
       
       if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => ({ 
-            ...notif, 
-            is_read: true, 
-            read_at: new Date().toISOString() 
-          }))
-        );
+        setNotifications([]);
+        window.dispatchEvent(new CustomEvent('notifications:read-all'));
+        fetchNotifications(true);
       }
     } catch (error) {
       console.error('Erro ao marcar todas como lidas:', error);
@@ -469,6 +465,18 @@ export default function Notificacoes() {
       fetchNotifications();
     }
   }, [canView, fetchNotifications]);
+
+  useEffect(() => {
+    const handler = () => {
+      setNotifications([]);
+      fetchNotifications();
+    };
+
+    window.addEventListener('notifications:read-all', handler);
+    return () => {
+      window.removeEventListener('notifications:read-all', handler);
+    };
+  }, [fetchNotifications]);
 
   // Carregar usuários quando a tab de envio for ativada
   useEffect(() => {

@@ -48,6 +48,18 @@ export default function NotificationCenter({ className = "" }: NotificationCente
   const [isOpen, setIsOpen] = useState(false);
   const { isAuthenticated, token } = useAuthStore();
 
+  useEffect(() => {
+    const handler = () => {
+      setNotifications([]);
+      setUnreadCount(0);
+    };
+
+    window.addEventListener('notifications:read-all', handler);
+    return () => {
+      window.removeEventListener('notifications:read-all', handler);
+    };
+  }, []);
+
   // WebSocket integration
   useEffect(() => {
     if (!isAuthenticated || !token) return;
@@ -161,6 +173,7 @@ export default function NotificationCenter({ className = "" }: NotificationCente
       if (response.ok) {
         setNotifications([]);
         setUnreadCount(0);
+        window.dispatchEvent(new CustomEvent('notifications:read-all'));
       }
     } catch (error) {
       console.error('Erro ao marcar todas como lidas:', error);
