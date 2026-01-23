@@ -47,7 +47,10 @@ type AuthStore = AuthState & AuthActions;
 
 // Configuração centralizada da URL base da API
 export const getApiBaseUrl = () => {
-  const envUrlRaw = (import.meta.env.VITE_API_URL || '').trim();
+  const envUrlRaw = String(import.meta.env.VITE_API_URL || '')
+    .trim()
+    .replace(/^['"`]+|['"`]+$/g, '')
+    .trim();
   if (import.meta.env.DEV && !envUrlRaw) return '/api';
 
   let envUrl = (envUrlRaw || 'http://localhost:3000').trim();
