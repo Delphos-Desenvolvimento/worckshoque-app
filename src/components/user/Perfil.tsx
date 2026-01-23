@@ -221,7 +221,7 @@ export default function Perfil() {
     
     <div className="space-y-8">
       <PageHeader
-        title="Meu Perfil (Atualizado)"
+        title="Meu Perfil"
         description="Gerencie suas informações pessoais e profissionais"
         icon={User}
         actions={[

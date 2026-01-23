@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 
-export type AgentAction = { route: string; label: string };
+export type AgentAction = {
+  label: string;
+  route?: string;
+  intent?: string;
+  payload?: Record<string, unknown>;
+};
 export type AgentResponsePayload = {
   direct_answer?: string;
   simple_explanation?: string;

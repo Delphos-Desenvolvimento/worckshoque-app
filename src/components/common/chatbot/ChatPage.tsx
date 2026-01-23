@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { getAgentContext, AgentContext, sendAgentMessage } from './agent-api';
+import { getAgentContext, AgentContext, isExternalUrl, resolveAgentActionRoute, sendAgentMessage } from './agent-api';
 import { useAgentChatStore, AgentResponsePayload, ChatMessage } from './useAgentChatStore';
 import PageHeader from '@/components/common/PageHeader';
 import { MessageSquare, Rocket, Sparkles, Send, Bot, User, Loader2, BrainCircuit, Target, FileText } from 'lucide-react';
@@ -86,11 +86,9 @@ export default function ChatPage() {
     }
   }, [messages, loading]);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    
-    const userMsg = input;
-    setInput('');
+  const sendText = async (text: string) => {
+    const userMsg = text.trim();
+    if (!userMsg || loading) return;
     addUserMessage(userMsg);
     setLoading(true);
 
@@ -107,6 +105,22 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input;
+    setInput('');
+    await sendText(userMsg);
+  };
+
+  const handleActionClick = (action: unknown) => {
+    const target = resolveAgentActionRoute(action as Record<string, unknown>);
+    if (target && isExternalUrl(target)) {
+      window.open(target, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    navigate(target);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -146,7 +160,7 @@ export default function ChatPage() {
                 variant="outline" 
                 size="sm" 
                 className="h-7 text-xs border-primary/30 hover:bg-primary/10 hover:text-primary"
-                onClick={() => navigate(action.route)}
+                onClick={() => handleActionClick(action)}
               >
                 {action.label}
               </Button>

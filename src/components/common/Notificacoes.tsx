@@ -293,10 +293,17 @@ export default function Notificacoes() {
     setShowConfirmModal(true);
   };
 
-  // Função para abrir modal de detalhes
-  const handleViewDetails = (notification: Notification) => {
+  const handleViewSentDetails = (notification: Notification) => {
     setSelectedNotification(notification);
     setShowDetailsModal(true);
+  };
+
+  const handleViewReceivedDetails = (notification: Notification) => {
+    setSelectedNotification(notification);
+    setShowDetailsModal(true);
+    if (!notification.is_read) {
+      markAsRead(notification.id);
+    }
   };
 
   // Função para enviar notificação (após confirmação)
@@ -396,7 +403,7 @@ export default function Notificacoes() {
       }
 
       const data: Notification[] = await response.json();
-      setNotifications(data);
+      setNotifications(data.filter((notification) => !notification.is_read));
     } catch (err) {
       if (err instanceof SessionExpiredError) return;
       console.error('Erro ao buscar notificações:', err);
@@ -409,20 +416,15 @@ export default function Notificacoes() {
 
   // Marcar como lida
   const markAsRead = async (notificationId: string) => {
+    setNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
     try {
       const response = await api.put(`/notifications/${notificationId}/read`);
       
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif.id === notificationId 
-              ? { ...notif, is_read: true, read_at: new Date().toISOString() }
-              : notif
-          )
-        );
-      }
+      if (response.ok) return;
+      fetchNotifications();
     } catch (error) {
       console.error('Erro ao marcar como lida:', error);
+      fetchNotifications();
     }
   };
 
@@ -434,7 +436,6 @@ export default function Notificacoes() {
       if (response.ok) {
         setNotifications([]);
         window.dispatchEvent(new CustomEvent('notifications:read-all'));
-        fetchNotifications(true);
       }
     } catch (error) {
       console.error('Erro ao marcar todas como lidas:', error);
@@ -798,7 +799,7 @@ export default function Notificacoes() {
                   className={`border-l-4 hover:shadow-md transition-shadow cursor-pointer ${
                     getPriorityColor(notification.priority)
                   } ${!notification.is_read ? 'ring-1 ring-primary/10' : ''}`}
-                  onClick={() => !notification.is_read && markAsRead(notification.id)}
+                  onClick={() => handleViewReceivedDetails(notification)}
                 >
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between">
@@ -896,6 +897,9 @@ export default function Notificacoes() {
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    if (!notification.is_read) {
+                                      markAsRead(notification.id);
+                                    }
                                     window.open(notification.action_url!, '_blank');
                                   }}
                                 >
@@ -1574,7 +1578,7 @@ export default function Notificacoes() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleViewDetails(notification)}
+                                    onClick={() => handleViewSentDetails(notification)}
                                     className="h-8 px-3"
                                   >
                                     <Eye className="w-4 h-4 mr-1" />
@@ -1721,16 +1725,6 @@ export default function Notificacoes() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Botão de fechar */}
-            <div className="flex justify-end">
-              <Button
-                onClick={() => setShowDetailsModal(false)}
-                className="px-6"
-              >
-                Fechar
-              </Button>
             </div>
           </div>
         )}

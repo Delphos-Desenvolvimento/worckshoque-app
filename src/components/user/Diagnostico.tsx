@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -10,6 +10,8 @@ import { ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Loader2, Save } fr
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+
+const STEP_ANCHORS = ['informacoes', 'problemas', 'urgencia', 'resumo'] as const;
 
 interface DiagnosticSpec {
   title: string;
@@ -29,6 +31,7 @@ interface DiagnosticoProps {
 
 const Diagnostico: React.FC<DiagnosticoProps> = ({ mode = 'page', onComplete }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
 
   const [loading, setLoading] = useState(false);
@@ -49,6 +52,32 @@ const Diagnostico: React.FC<DiagnosticoProps> = ({ mode = 'page', onComplete }) 
 
   const totalSteps = 4;
 
+  useEffect(() => {
+    const parseStep = (raw?: string | null) => {
+      const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+      if (!value) return null;
+      const asNumber = Number(value);
+      if (Number.isInteger(asNumber)) {
+        return Math.max(0, Math.min(asNumber, totalSteps - 1));
+      }
+      const match = value.match(/^step-?(\d+)$/);
+      if (match) {
+        const idx = Number(match[1]);
+        if (Number.isInteger(idx)) {
+          return Math.max(0, Math.min(idx, totalSteps - 1));
+        }
+      }
+      const idx = STEP_ANCHORS.indexOf(value as (typeof STEP_ANCHORS)[number]);
+      return idx >= 0 ? idx : null;
+    };
+
+    const params = new URLSearchParams(location.search);
+    const fromQuery = params.get('step') ?? params.get('etapa') ?? params.get('module');
+    const fromHash = location.hash ? location.hash.slice(1) : '';
+    const resolved = parseStep(fromQuery ?? fromHash);
+    if (resolved !== null) setCurrentStep(resolved);
+  }, [location.search, location.hash, totalSteps]);
+
   const handleChange = (field: keyof DiagnosticSpec, value: string) => {
     setSpec((prev) => ({
       ...prev,
@@ -66,7 +95,12 @@ const Diagnostico: React.FC<DiagnosticoProps> = ({ mode = 'page', onComplete }) 
     if (currentStep === 2) {
       return !!spec.urgency && !!spec.timeframe;
     }
-    return true;
+    return (
+      spec.title.trim().length > 0 &&
+      spec.area.trim().length > 0 &&
+      spec.painPoints.trim().length > 0 &&
+      spec.goals.trim().length > 0
+    );
   };
 
   const handleNext = () => {
@@ -403,7 +437,7 @@ const Diagnostico: React.FC<DiagnosticoProps> = ({ mode = 'page', onComplete }) 
               </CardHeader>
 
               <CardContent className="space-y-6">
-                <div className="pt-2">{renderStep()}</div>
+                <div id={STEP_ANCHORS[currentStep]} className="pt-2">{renderStep()}</div>
 
                 <div className="flex justify-between pt-6 border-t mt-4">
                   <Button

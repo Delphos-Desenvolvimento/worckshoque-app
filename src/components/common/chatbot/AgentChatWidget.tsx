@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAgentChatStore } from './useAgentChatStore';
-import { getAgentContext, sendAgentMessage } from './agent-api';
+import { getAgentContext, isExternalUrl, resolveAgentActionRoute, sendAgentMessage } from './agent-api';
 import { MessageSquare, X, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { ChatMessage, AgentResponsePayload } from './useAgentChatStore';
+import type { ChatMessage, AgentResponsePayload, AgentAction } from './useAgentChatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -29,10 +29,9 @@ export default function AgentChatWidget() {
     }
   }, [open, messages.length]);
 
-  const onSend = async () => {
-    const message = input.trim();
+  const sendText = async (text: string) => {
+    const message = text.trim();
     if (!message || loading) return;
-    setInput('');
     addUserMessage(message);
     setLoading(true);
     try {
@@ -40,9 +39,7 @@ export default function AgentChatWidget() {
         addAgentResponse({
           direct_answer: 'Sua sessão não está autenticada. Faça login novamente.',
           simple_explanation: 'Não foi possível validar suas credenciais para enviar a mensagem.',
-          recommended_actions: [
-            { label: 'Ir para Login', route: '/login' },
-          ],
+          recommended_actions: [{ label: 'Ir para Login', route: '/login' }],
           motivation: 'Após autenticar, retome a conversa com o agente.',
           follow_up_question: 'Deseja ir para a página de login?',
         });
@@ -66,6 +63,25 @@ export default function AgentChatWidget() {
     }
   };
 
+  const handleActionClick = (action: AgentAction) => {
+    const target = resolveAgentActionRoute(action);
+
+    if (target && isExternalUrl(target)) {
+      window.open(target, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    navigate(target);
+    closeChat();
+  };
+
+  const onSend = async () => {
+    const message = input.trim();
+    if (!message || loading) return;
+    setInput('');
+    await sendText(message);
+  };
+
   const renderMessage = (m: ChatMessage, idx: number) => {
     if (m.sender === 'agent' && typeof m.content === 'object') {
       const r = m.content as AgentResponsePayload;
@@ -76,7 +92,12 @@ export default function AgentChatWidget() {
           {r.plan_connection && <div className="text-xs mb-2">{r.plan_connection}</div>}
           <div className="flex gap-2 flex-wrap">
             {r.recommended_actions?.map((a, i: number) => (
-              <button key={i} className="px-2 py-1 bg-yellow-500 text-slate-900 rounded text-sm" onClick={() => navigate(a.route)}>
+              <button
+                key={i}
+                type="button"
+                className="px-2 py-1 bg-yellow-500 text-slate-900 rounded text-sm"
+                onClick={() => handleActionClick(a)}
+              >
                 {a.label}
               </button>
             ))}

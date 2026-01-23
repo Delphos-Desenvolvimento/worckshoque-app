@@ -12,7 +12,6 @@ import {
 import {
   Bell,
   BellRing,
-  Check,
   CheckCheck,
   AlertTriangle,
   Info,
@@ -24,6 +23,7 @@ import {
 import { api, SessionExpiredError } from '@/lib/api';
 import { useAuthStore, getApiBaseUrl } from '@/stores/authStore';
 import { io } from 'socket.io-client';
+import ModalLayout from '@/components/common/ModalLayout';
 
 interface Notification {
   id: string;
@@ -46,6 +46,8 @@ export default function NotificationCenter({ className = "" }: NotificationCente
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const { isAuthenticated, token } = useAuthStore();
 
   useEffect(() => {
@@ -165,6 +167,14 @@ export default function NotificationCenter({ className = "" }: NotificationCente
     }
   };
 
+  const handleViewDetails = (notification: Notification) => {
+    setSelectedNotification(notification);
+    setShowDetailsModal(true);
+    if (!notification.is_read) {
+      markAsRead(notification.id);
+    }
+  };
+
   // Marcar todas como lidas
   const markAllAsRead = async () => {
     try {
@@ -257,26 +267,27 @@ export default function NotificationCenter({ className = "" }: NotificationCente
   };
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className={`relative ${className}`}>
-          {unreadCount > 0 ? (
-            <BellRing className="w-5 h-5" />
-          ) : (
-            <Bell className="w-5 h-5" />
-          )}
-          
-          {unreadCount > 0 && (
-            <Badge 
-              className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs bg-red-500 text-white"
-            >
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </Badge>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      
-      <DropdownMenuContent align="end" className="w-80 p-0">
+    <>
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className={`relative ${className}`}>
+            {unreadCount > 0 ? (
+              <BellRing className="w-5 h-5" />
+            ) : (
+              <Bell className="w-5 h-5" />
+            )}
+            
+            {unreadCount > 0 && (
+              <Badge 
+                className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs bg-red-500 text-white"
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Badge>
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        
+        <DropdownMenuContent align="end" className="w-80 p-0">
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Notificações</h3>
@@ -322,7 +333,7 @@ export default function NotificationCenter({ className = "" }: NotificationCente
                   className={`p-3 mb-2 rounded-lg border-l-4 cursor-pointer hover:shadow-sm transition-shadow ${
                     getPriorityClasses(notification.priority, notification.is_read)
                   }`}
-                  onClick={() => !notification.is_read && markAsRead(notification.id)}
+                  onClick={() => handleViewDetails(notification)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1">
@@ -353,35 +364,50 @@ export default function NotificationCenter({ className = "" }: NotificationCente
                         </div>
                       </div>
                     </div>
-                    
-                    {!notification.is_read && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          markAsRead(notification.id);
-                        }}
-                        className="p-1 h-6 w-6"
-                      >
-                        <Check className="w-3 h-3" />
-                      </Button>
-                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </ScrollArea>
-
         {notifications.length > 0 && (
           <div className="p-3 border-t text-center">
-            <Button variant="ghost" size="sm" className="text-xs">
-              Ver todas as notificações
-            </Button>
+            {/* Button removed */}
           </div>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ModalLayout
+        isOpen={showDetailsModal}
+        onClose={() => setShowDetailsModal(false)}
+        title="📋 Detalhes da Notificação"
+        size="lg"
+      >
+        {selectedNotification && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              {getNotificationIcon(selectedNotification.type)}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-foreground truncate">
+                    {selectedNotification.title}
+                  </h3>
+                  <Badge variant="outline" className="text-xs">
+                    {formatPriorityLabel(selectedNotification.priority)}
+                  </Badge>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {formatTimeAgo(selectedNotification.created_at)}
+                </div>
+              </div>
+            </div>
+            <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+              {selectedNotification.message}
+            </div>
+          </div>
+        )}
+      </ModalLayout>
+    </>
   );
 }
