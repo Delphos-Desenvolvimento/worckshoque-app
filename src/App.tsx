@@ -54,6 +54,8 @@ import Empresas from "./components/master/Empresas";
 import Configuracoes from "./components/common/Configuracoes";
 import ChatPage from "./components/common/chatbot/ChatPage";
 import AgentChatWidget from "./components/common/chatbot/AgentChatWidget";
+import { AccessibilityWidget } from "./components/common/AccessibilityWidget";
+import { VLibrasWidget } from "./components/common/VLibrasWidget";
 
 const queryClient = new QueryClient();
 
@@ -281,6 +283,7 @@ const AppWithAuth = () => {
               };
               return <WidgetGate />;
             })()}
+            <VLibrasWidget />
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>

@@ -12,6 +12,8 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
+import { AccessibilityWidget } from "../common/AccessibilityWidget";
+
 function DashboardContent({ children }: DashboardLayoutProps) {
   const { state, isMobile } = useSidebar();
   const { user } = useAuthStore();
@@ -113,6 +115,7 @@ function DashboardContent({ children }: DashboardLayoutProps) {
   if (isMobile) {
     return (
       <MobileLayout>
+        <AccessibilityWidget />
         {requiredPermission ? (
           <ProtectedRoute permission={requiredPermission}>
             {children}
@@ -127,6 +130,7 @@ function DashboardContent({ children }: DashboardLayoutProps) {
   return (
     <div className="min-h-screen w-full">
       <AppSidebar />
+      <AccessibilityWidget />
       <main className={`transition-all duration-300 ${isMobile ? 'ml-0' : (collapsed ? 'ml-20' : 'ml-80')}`}>
         <header className="h-16 flex items-center justify-between border-b px-4 md:px-6 bg-background transition-colors duration-300">
           <SidebarTrigger />

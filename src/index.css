@@ -111,6 +111,15 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+  
+  /* Accessibility Classes */
+  .high-contrast {
+    filter: contrast(125%);
+  }
+  
+  .text-large {
+    font-size: 110%;
+  }
 }
 
 @layer base {
