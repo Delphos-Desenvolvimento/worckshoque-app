@@ -163,15 +163,15 @@ const AdminDashboard = () => {
       <div className="container mx-auto px-4">
 
         {/* Company Stats */}
-        <div className="grid md:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Colaboradores</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayStats.colaboradores}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{displayStats.colaboradores}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 Total cadastrado
               </p>
             </CardContent>
@@ -183,8 +183,8 @@ const AdminDashboard = () => {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayStats.diagnosticos}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{displayStats.diagnosticos}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 Realizados
               </p>
             </CardContent>
@@ -196,8 +196,8 @@ const AdminDashboard = () => {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayStats.activePlans}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{displayStats.activePlans}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 Em andamento
               </p>
             </CardContent>
@@ -209,21 +209,21 @@ const AdminDashboard = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayStats.engajamento}%</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{displayStats.engajamento}%</div>
+              <p className="text-xs text-muted-foreground truncate">
                 usuários ativos
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="col-span-2 md:col-span-1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Conquistas</CardTitle>
               <Award className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayStats.achievements}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{displayStats.achievements}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 desbloqueadas
               </p>
             </CardContent>

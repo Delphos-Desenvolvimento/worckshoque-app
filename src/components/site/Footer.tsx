@@ -16,12 +16,12 @@ const Footer = () => {
   return (
     <footer className="bg-gray-900 text-white">
       {/* Main Footer Content */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div className="container mx-auto px-4 py-8 md:py-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
           
           {/* Company Info */}
-          <div className="space-y-4">
-            <WorkChoqueLogo showText={false} className="h-8 w-auto" />
+          <div className="space-y-3 md:space-y-4">
+            <WorkChoqueLogo showText={false} className="h-6 w-auto md:h-8" />
             <p className="text-gray-300 text-sm leading-relaxed">
               Transforme seu ambiente de trabalho com diagnósticos inteligentes. 
               Descubra problemas, receba planos de ação personalizados e acompanhe 

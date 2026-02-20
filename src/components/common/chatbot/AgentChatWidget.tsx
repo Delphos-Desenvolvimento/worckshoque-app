@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAgentChatStore } from './useAgentChatStore';
 import { getAgentContext, isExternalUrl, resolveAgentActionRoute, sendAgentMessage } from './agent-api';
 import { MessageSquare, X, Send } from 'lucide-react';
@@ -16,6 +16,17 @@ export default function AgentChatWidget() {
   const [lastSeenCount, setLastSeenCount] = useState(0);
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (open) {
+      scrollToBottom();
+    }
+  }, [open, messages, loading]);
 
   useEffect(() => {
     if (open && !context) {
@@ -157,6 +168,19 @@ export default function AgentChatWidget() {
           </div>
           <div className="p-3 space-y-2 h-80 overflow-y-auto">
             {messages.map(renderMessage)}
+            {loading && (
+              <div className="flex gap-3 justify-start">
+                <div className="p-2 rounded bg-slate-800 text-slate-200 w-fit flex items-center gap-2 animate-pulse">
+                  <span className="text-sm italic">Digitando...</span>
+                  <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                    <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                    <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
           <div className="p-3 flex gap-2 border-t border-slate-700">
             <input

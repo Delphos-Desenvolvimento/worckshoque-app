@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ interface RecentActivity {
 }
 
 export default function MasterDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [topCompanies, setTopCompanies] = useState<TopCompany[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
@@ -140,7 +142,7 @@ export default function MasterDashboard() {
           {
             label: "Configurações",
             icon: Settings,
-            onClick: () => {},
+            onClick: () => navigate('/configuracoes'),
             variant: "primary"
           }
         ]}
@@ -149,7 +151,7 @@ export default function MasterDashboard() {
       <div className="container mx-auto px-4">
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -158,9 +160,9 @@ export default function MasterDashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayStats.totalUsuarios}</div>
-              <p className="text-xs text-muted-foreground">
-                Total de usuários cadastrados
+              <div className="text-xl md:text-2xl font-bold">{displayStats.totalUsuarios}</div>
+              <p className="text-xs text-muted-foreground truncate">
+                Total de usuários
               </p>
             </CardContent>
           </Card>
@@ -172,8 +174,8 @@ export default function MasterDashboard() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayStats.diagnosticosGlobais}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{displayStats.diagnosticosGlobais}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 Total de diagnósticos
               </p>
             </CardContent>
@@ -184,8 +186,8 @@ export default function MasterDashboard() {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{displayStats.planosAtivos}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{displayStats.planosAtivos}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 Planos em execução
               </p>
             </CardContent>
@@ -198,8 +200,8 @@ export default function MasterDashboard() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(displayStats.receitaMensal)}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{formatCurrency(displayStats.receitaMensal)}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 MRR Atual
               </p>
             </CardContent>

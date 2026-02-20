@@ -60,9 +60,9 @@ const Header = ({ user }: HeaderProps) => {
         ? 'bg-blue-900/95 backdrop-blur-md shadow-lg' 
         : 'bg-transparent backdrop-blur-sm'
     }`}>
-      <div className="container flex h-24 items-center justify-between">
+      <div className="container flex h-16 md:h-24 items-center justify-between px-4 md:px-8">
         <Link to="/" className="flex items-center h-full">
-          <WorkChoqueLogo showText={false} className="h-full w-auto" />
+          <WorkChoqueLogo showText={false} className="h-10 w-auto md:h-full" />
         </Link>
 
         <nav className="hidden md:flex items-center space-x-6">
@@ -120,12 +120,12 @@ const Header = ({ user }: HeaderProps) => {
           )}
         </nav>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 md:space-x-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            className={`h-9 w-9 px-0 transition-colors ${
+            className={`h-8 w-8 md:h-9 md:w-9 px-0 transition-colors ${
               isScrolled ? 'text-white/90 hover:text-white hover:bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
             }`}
           >
@@ -138,7 +138,8 @@ const Header = ({ user }: HeaderProps) => {
               <Button 
                 variant="ghost" 
                 onClick={handleLoginClick}
-                className={`transition-colors ${
+                size="sm"
+                className={`transition-colors text-sm ${
                   isScrolled ? 'text-white/90 hover:text-white hover:bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
@@ -146,7 +147,8 @@ const Header = ({ user }: HeaderProps) => {
               </Button>
               <Button 
                 onClick={handleCadastroClick}
-                className={`transition-colors ${
+                size="sm"
+                className={`transition-colors text-sm ${
                   isScrolled ? 'bg-white/30 hover:bg-white/40 text-white border-white/40' : 'bg-white/20 hover:bg-white/30 text-white border-white/30'
                 }`}
               >
@@ -155,7 +157,7 @@ const Header = ({ user }: HeaderProps) => {
             </div>
           ) : (
             <div className="flex items-center space-x-2">
-              <span className={`text-sm transition-colors ${
+              <span className={`text-sm transition-colors hidden md:inline-block ${
                 isScrolled ? 'text-white/90' : 'text-white/80'
               }`}>
                 Olá, {user.name}
@@ -178,7 +180,7 @@ const Header = ({ user }: HeaderProps) => {
           <Button variant="ghost" size="sm" className={`md:hidden transition-colors ${
             isScrolled ? 'text-white/90 hover:text-white hover:bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
           }`}>
-            <Menu className="h-4 w-4" />
+            <Menu className="h-5 w-5" />
           </Button>
         </div>
       </div>
@@ -193,6 +195,7 @@ const Header = ({ user }: HeaderProps) => {
       <LoginModal
         isOpen={showLoginModal}
         onClose={handleLoginClose}
+        onRegisterClick={handleCadastroClick}
       />
     </header>
   );

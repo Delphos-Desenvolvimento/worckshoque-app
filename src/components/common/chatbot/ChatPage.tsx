@@ -283,7 +283,7 @@ export default function ChatPage() {
                     </Avatar>
                     <div className="bg-card border border-border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground ml-2">Analisando...</span>
+                      <span className="text-xs text-muted-foreground ml-2">Formulando resposta...</span>
                     </div>
                   </div>
                 )}

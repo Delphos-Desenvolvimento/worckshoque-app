@@ -13,6 +13,7 @@ import DiagnosticDetailModal from '@/components/common/DiagnosticDetailModal';
 import ModalLayout from '@/components/common/ModalLayout';
 import Diagnostico from '@/components/user/Diagnostico';
 import { listDiagnostics } from '@/lib/diagnostics-api';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { BarChart3, Filter, Grid3X3, List, Plus, Search, Calendar } from 'lucide-react';
 
 interface DiagnosticUser {
@@ -42,6 +43,7 @@ interface DiagnosticData {
 
 const Diagnosticos: React.FC = () => {
   const { token, user } = useAuthStore();
+  const { hasPermission } = usePermissions();
 
   const [diagnostics, setDiagnostics] = useState<DiagnosticData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,14 +131,16 @@ const Diagnosticos: React.FC = () => {
             icon: Calendar,
           },
         ]}
-        actions={[
-          {
-            label: 'Novo Diagnóstico',
-            icon: Plus,
-            onClick: () => setIsDiagnosticModalOpen(true),
-            variant: 'primary',
-          },
-        ]}
+        actions={
+          hasPermission('diagnostico.create') ? [
+            {
+              label: 'Novo Diagnóstico',
+              icon: Plus,
+              onClick: () => setIsDiagnosticModalOpen(true),
+              variant: 'primary',
+            },
+          ] : []
+        }
       />
 
       <div className="container mx-auto px-4 space-y-6">

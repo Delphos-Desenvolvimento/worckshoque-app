@@ -7,13 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import PageHeader from "@/components/common/PageHeader";
-import { User, Mail, Building, Calendar, Save, X } from "lucide-react";
+import { User, Mail, Building, Calendar, Save, X, Settings, LifeBuoy, Key } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 export default function Perfil() {
   const { user, setUser } = useAuthStore();
+  const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const hasLocalChangesRef = useRef(false);
@@ -34,9 +36,70 @@ export default function Perfil() {
     dataContratacao: '',
     telefone: '',
     bio: '',
-    empresa: user?.company || ''
+    empresa: user?.company || '',
+    avatarUrl: ''
   });
   const [initialData, setInitialData] = useState(formData);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) { // Reduced to 2MB for base64 safety
+      toast.error('O arquivo deve ter no máximo 2MB');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Convert to Base64
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      
+      reader.onload = async () => {
+        const base64String = reader.result as string;
+        
+        // Use api wrapper which handles token automatically
+        const response = await api.post('/auth/profile/avatar', {
+          avatar: base64String
+        });
+
+        if (!response.ok) {
+          throw new Error('Falha no upload');
+        }
+
+        const data = await response.json();
+        
+        // Update form data with new avatar (base64 directly)
+        setFormData(prev => ({ ...prev, avatarUrl: base64String }));
+        
+        if (user) {
+          setUser({ ...user }); 
+        }
+        
+        toast.success('Foto atualizada com sucesso');
+        setLoading(false);
+        // No need to reload page since we update state directly
+      };
+
+      reader.onerror = () => {
+        toast.error('Erro ao ler arquivo');
+        setLoading(false);
+      };
+
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast.error('Erro ao atualizar foto');
+      setLoading(false);
+    }
+  };
 
   const getRoleLabel = (role: string) => {
     const roles: Record<string, string> = {
@@ -64,7 +127,8 @@ export default function Perfil() {
         dataContratacao: '',
         telefone: '',
         bio: '',
-        empresa: user.company || ''
+        empresa: '', // Will be updated from API
+        avatarUrl: ''
       };
 
       try {
@@ -101,6 +165,11 @@ export default function Perfil() {
             ? ((data as { profile?: { hireDate?: string } }).profile?.hireDate ?? '')
             : '';
         const profileHireDate = profileHireDateRaw ? String(profileHireDateRaw).split('T')[0] : '';
+        
+        const profileAvatarUrl =
+          data && typeof data === 'object' && 'profile' in data
+            ? ((data as { profile?: { avatarUrl?: string } }).profile?.avatarUrl ?? '')
+            : '';
 
         const merged = {
           ...baseData,
@@ -111,11 +180,22 @@ export default function Perfil() {
           cargo: profilePos || baseData.cargo,
           departamento: profileDept || baseData.departamento,
           dataContratacao: profileHireDate || baseData.dataContratacao,
+          empresa: (data as { company?: string }).company || baseData.empresa,
+          avatarUrl: profileAvatarUrl || baseData.avatarUrl
         };
 
         setInitialData(merged);
         if (!hasLocalChangesRef.current) {
           setFormData(merged);
+        }
+
+        if (data.stats) {
+          setStats({
+            diagnosticos: data.stats.diagnosticos || 0,
+            planosAtivos: data.stats.planosAtivos || 0,
+            conquistas: data.stats.conquistas || 0,
+            nivel: `Nível ${data.stats.nivel || 1}`
+          });
         }
       } catch (error) {
         const err = error as { message?: string };
@@ -217,6 +297,15 @@ export default function Perfil() {
     hasLocalChangesRef.current = false;
   };
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR');
+    } catch {
+      return 'Data inválida';
+    }
+  };
+
   return (
     
     <div className="space-y-8">
@@ -251,17 +340,25 @@ export default function Perfil() {
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-4 mb-6">
                 <Avatar className="w-20 h-20">
-                  <AvatarImage src="" />
+                  <AvatarImage src={formData.avatarUrl || ""} />
                   <AvatarFallback className="text-2xl">
                     {user?.name?.split(' ').map(n => n[0]).join('') || 'JS'}
                   </AvatarFallback>
                 </Avatar>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => toast.info('Funcionalidade em desenvolvimento')}
+                onClick={handleAvatarClick}
+                disabled={loading}
               >
-                Alterar Foto
+                {loading ? 'Enviando...' : 'Alterar Foto'}
               </Button>
               </div>
 
@@ -410,11 +507,11 @@ export default function Perfil() {
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <Building className="w-4 h-4 text-muted-foreground" />
-                <span>{formData.empresa}</span>
+                <span>{formData.empresa || 'Empresa não definida'}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span>Desde {new Date(formData.dataContratacao).toLocaleDateString('pt-BR')}</span>
+                <span>Desde {formatDate(formData.dataContratacao)}</span>
               </div>
             </CardContent>
           </Card>
@@ -425,13 +522,31 @@ export default function Perfil() {
               <CardTitle className="text-lg">Ações Rápidas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant="outline" size="sm" className="w-full justify-start">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full justify-start gap-2"
+                onClick={() => toast.info('Funcionalidade em breve')}
+              >
+                <Key className="w-4 h-4" />
                 Alterar Senha
               </Button>
-              <Button variant="outline" size="sm" className="w-full justify-start">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full justify-start gap-2"
+                onClick={() => navigate('/configuracoes')}
+              >
+                <Settings className="w-4 h-4" />
                 Configurações
               </Button>
-              <Button variant="outline" size="sm" className="w-full justify-start">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full justify-start gap-2"
+                onClick={() => window.open('mailto:suporte@workchoq.com')}
+              >
+                <LifeBuoy className="w-4 h-4" />
                 Suporte
               </Button>
             </CardContent>

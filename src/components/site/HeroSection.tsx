@@ -25,26 +25,31 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onDiagnosticoClick }) => {
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900/60 via-slate-800/80 to-slate-900/95 z-10"></div>
       
       {/* Content */}
-      <div className="relative z-20 container mx-auto px-4 text-center">
-        <h1 className="text-4xl md:text-6xl font-bold mb-6">
+      <div className="relative z-20 container mx-auto px-4 md:px-6 text-center pt-20 md:pt-0">
+        <h1 className="text-3xl md:text-6xl font-bold mb-3 md:mb-6 leading-tight">
           Transforme seu ambiente de trabalho com{' '}
-          <span className="text-accent">diagnósticos inteligentes</span>
+          <span className="text-accent block mt-1 md:mt-2 md:inline">diagnósticos inteligentes</span>
         </h1>
-        <p className="text-xl md:text-2xl mb-8 text-white/90 max-w-3xl mx-auto">
+        <p className="text-base md:text-2xl mb-6 md:mb-8 text-white/90 max-w-3xl mx-auto leading-relaxed px-2">
           Descubra problemas, receba planos de ação personalizados e acompanhe o progresso da sua equipe em tempo real.
         </p>
         
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+        <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center items-center px-4 w-full">
           <Button 
             size="lg" 
             variant="accent"
-            className="font-semibold px-8 py-4 text-lg"
+            className="w-full sm:w-auto font-semibold px-6 md:px-8 h-12 md:h-14 text-base md:text-lg shadow-lg"
             onClick={onDiagnosticoClick}
           >
             Fazer Diagnóstico Gratuito
             <ChevronRight className="ml-2 h-5 w-5" />
           </Button>
-          <Button variant="outline" size="lg" className="border-white text-white dark:text-white text-gray-800 dark:bg-white/10 bg-white/90 hover:bg-white/20 dark:hover:bg-white/20 px-8 py-4 text-lg" asChild>
+          <Button 
+            variant="outline" 
+            size="lg" 
+            className="w-full sm:w-auto border-white text-gray-900 bg-white hover:bg-white/90 px-6 md:px-8 h-12 md:h-14 text-base md:text-lg" 
+            asChild
+          >
             <Link to="/sobre">
               Saiba Mais
             </Link>

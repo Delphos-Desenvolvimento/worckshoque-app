@@ -46,35 +46,35 @@ const PageHeader = ({
   className = ""
 }: PageHeaderProps) => {
   return (
-    <div className={`space-y-6 ${className}`}>
+    <div className={`space-y-4 md:space-y-6 ${className}`}>
       {/* Header Profissional */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-primary/90 to-accent p-8 text-white">
+      <div className="relative overflow-hidden rounded-xl md:rounded-2xl bg-gradient-to-r from-primary via-primary/90 to-accent p-4 md:p-8 text-white">
         <div className="absolute inset-0 bg-black/10"></div>
         <div className="relative z-10">
-          <div className="flex items-start justify-between">
-            <div className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-0">
+            <div className="space-y-3 md:space-y-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-white/20 p-3 backdrop-blur-sm">
-                  <Icon className="w-8 h-8 text-white" />
+                <div className="rounded-xl bg-white/20 p-2 md:p-3 backdrop-blur-sm">
+                  <Icon className="w-6 h-6 md:w-8 md:h-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold tracking-tight">{title}</h1>
-                  <p className="text-white/90 text-lg">{description}</p>
+                  <h1 className="text-2xl md:text-4xl font-bold tracking-tight">{title}</h1>
+                  <p className="text-white/90 text-sm md:text-lg leading-snug">{description}</p>
                 </div>
               </div>
               
               {/* Badges informativos */}
               {badges.length > 0 && (
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-2 md:gap-4">
                   {badges.map((badge, index) => {
                     const IconComponent = badge.icon;
                     return (
                       <Badge 
                         key={index}
                         variant="secondary" 
-                        className="bg-white/20 text-white border-white/30 backdrop-blur-sm"
+                        className="bg-white/20 text-white border-white/30 backdrop-blur-sm text-xs md:text-sm py-0.5 px-2 md:py-1 md:px-3"
                       >
-                        {badge.icon && <IconComponent className="w-4 h-4 mr-2" />}
+                        {badge.icon && <IconComponent className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />}
                         {badge.label}
                       </Badge>
                     );
@@ -85,7 +85,7 @@ const PageHeader = ({
             
             {/* Botões de ação */}
             {actions.length > 0 && (
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2 md:gap-6 mt-2 md:mt-0 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
                 {actions.map((action, index) => {
                   const IconComponent = action.icon;
                   return (
@@ -93,14 +93,14 @@ const PageHeader = ({
                       key={index}
                       onClick={action.onClick}
                       disabled={action.disabled}
-                      size="lg"
+                      size="sm"
                       className={
                         action.variant === 'secondary'
-                          ? "bg-white/10 hover:bg-white/20 text-white border-white/40 backdrop-blur-sm px-6 py-3 font-medium"
-                          : "bg-white hover:bg-white/90 text-primary shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3 font-semibold"
+                          ? "bg-white/10 hover:bg-white/20 text-white border-white/40 backdrop-blur-sm px-4 py-2 font-medium whitespace-nowrap h-9 md:h-11 md:px-6 md:text-base"
+                          : "bg-white hover:bg-white/90 text-primary shadow-lg hover:shadow-xl transition-all duration-300 px-4 py-2 font-semibold whitespace-nowrap h-9 md:h-11 md:px-6 md:text-base"
                       }
                     >
-                      <IconComponent className="mr-3 h-5 w-5" />
+                      <IconComponent className="mr-2 h-4 w-4 md:mr-3 md:h-5 md:w-5" />
                       {action.label}
                     </Button>
                   );

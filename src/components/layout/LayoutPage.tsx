@@ -1,6 +1,7 @@
 import { ReactNode, useEffect } from "react";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
+import { MobileLayout } from "./mobile/MobileLayout";
 import { useAuthStore } from "@/stores/authStore";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { AuthPermissionsWrapper } from "@/components/common/AuthPermissionsWrapper";
@@ -12,7 +13,7 @@ interface DashboardLayoutProps {
 }
 
 function DashboardContent({ children }: DashboardLayoutProps) {
-  const { state } = useSidebar();
+  const { state, isMobile } = useSidebar();
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -109,20 +110,34 @@ function DashboardContent({ children }: DashboardLayoutProps) {
     }
   }, [user, location.pathname, navigate, requiredPermission, currentPath]);
 
+  if (isMobile) {
+    return (
+      <MobileLayout>
+        {requiredPermission ? (
+          <ProtectedRoute permission={requiredPermission}>
+            {children}
+          </ProtectedRoute>
+        ) : (
+          children
+        )}
+      </MobileLayout>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full">
       <AppSidebar />
-      <main className={`transition-all duration-300 ${collapsed ? 'ml-20' : 'ml-80'}`}>
-        <header className="h-16 flex items-center justify-between border-b px-6 bg-background transition-colors duration-300">
+      <main className={`transition-all duration-300 ${isMobile ? 'ml-0' : (collapsed ? 'ml-20' : 'ml-80')}`}>
+        <header className="h-16 flex items-center justify-between border-b px-4 md:px-6 bg-background transition-colors duration-300">
           <SidebarTrigger />
           <div className="flex items-center gap-4">
             <NotificationCenter />
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground hidden md:block">
               {user?.name}
             </div>
           </div>
         </header>
-        <div className="px-6 py-6 min-h-screen">
+        <div className="px-4 py-4 md:px-6 md:py-6 min-h-screen">
           {requiredPermission ? (
             <ProtectedRoute permission={requiredPermission}>
               {children}

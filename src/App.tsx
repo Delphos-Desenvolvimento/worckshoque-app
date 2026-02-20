@@ -3,9 +3,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { PermissionsProvider } from "./contexts/PermissionsContext";
+import { AuthPermissionsWrapper } from "./components/common/AuthPermissionsWrapper";
 import { useAuthStore } from "./stores/authStore";
 import type { User } from "./stores/authStore";
 import { DashboardLayout } from "./components/layout/LayoutPage";
@@ -216,7 +217,11 @@ const AppWithAuth = () => {
               
               {/* Protected Routes with Sidebar */}
               <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
-              <Route path="/diagnostico" element={<DashboardLayout><Diagnostico /></DashboardLayout>} />
+              <Route path="/diagnostico" element={
+                <AuthPermissionsWrapper permission="diagnostico.create" fallback={<Navigate to="/dashboard" />}>
+                  <DashboardLayout><Diagnostico /></DashboardLayout>
+                </AuthPermissionsWrapper>
+              } />
               {/* Unificado: rota de Conquistas usa página única */}
               
               

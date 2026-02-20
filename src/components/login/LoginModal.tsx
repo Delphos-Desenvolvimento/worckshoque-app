@@ -13,9 +13,10 @@ import { axiosInstance } from '@/lib/api';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onRegisterClick?: () => void;
 }
 
-const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
+const LoginModal = ({ isOpen, onClose, onRegisterClick }: LoginModalProps) => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
   
@@ -269,8 +270,9 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
             <button
               onClick={() => {
                 onClose();
-                // Aqui poderia abrir o modal de cadastro se necessário
-                navigate('/');
+                if (onRegisterClick) {
+                  onRegisterClick();
+                }
               }}
               className="text-accent hover:underline font-medium"
             >

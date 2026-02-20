@@ -3272,7 +3272,6 @@ function MasterSecurityContent({ canEdit, setMessage }: { canEdit: boolean; setM
   const [isDirty, setIsDirty] = useState(false);
   const [securitySettings, setSecuritySettings] = useState({
     authentication: {
-      twoFactor: true,
       sessionTimeout: 30,
       passwordPolicy: 'strong',
       loginAttempts: 5
@@ -3333,24 +3332,6 @@ function MasterSecurityContent({ canEdit, setMessage }: { canEdit: boolean; setM
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="twoFactor">Autenticação 2FA</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Exigir autenticação de dois fatores
-                  </p>
-                </div>
-                <Switch
-                  id="twoFactor"
-                  checked={securitySettings.authentication.twoFactor}
-                  onCheckedChange={(checked) => setSecuritySettings(prev => ({
-                    ...prev,
-                    authentication: { ...prev.authentication, twoFactor: checked }
-                  }))}
-                  disabled={!canEdit}
-                />
-              </div>
-
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="encryption">Criptografia</Label>

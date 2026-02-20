@@ -209,15 +209,15 @@ const Dashboard = () => {
       <div className="container mx-auto px-4">
 
         {/* Stats Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Diagnósticos</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.diagnostics}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{stats.diagnostics}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 Total realizado
               </p>
             </CardContent>
@@ -229,8 +229,8 @@ const Dashboard = () => {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.activePlans}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{stats.activePlans}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 Em andamento
               </p>
             </CardContent>
@@ -242,8 +242,8 @@ const Dashboard = () => {
               <Award className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.achievements}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">{stats.achievements}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 Desbloqueadas
               </p>
             </CardContent>
@@ -255,8 +255,8 @@ const Dashboard = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">#{stats.ranking}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xl md:text-2xl font-bold">#{stats.ranking}</div>
+              <p className="text-xs text-muted-foreground truncate">
                 na sua empresa
               </p>
             </CardContent>
