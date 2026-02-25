@@ -7,6 +7,7 @@ import HeroSection from './HeroSection';
 import FeaturesSection from './FeaturesSection';
 import StatsSection from './StatsSection';
 import CTASection from './CTASection';
+import { PublicAccessibilityWidget } from '@/components/common/AccessibilityWidget';
 
 const Home: React.FC = () => {
   const [isDiagnosticoModalOpen, setIsDiagnosticoModalOpen] = useState(false);
@@ -24,6 +25,7 @@ const Home: React.FC = () => {
       <StatsSection />
       <CTASection onDiagnosticoClick={handleDiagnosticoClick} />
       <Footer />
+      <PublicAccessibilityWidget />
 
       <ModalLayout
         isOpen={isDiagnosticoModalOpen}

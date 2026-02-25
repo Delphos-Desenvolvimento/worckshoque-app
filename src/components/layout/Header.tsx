@@ -20,6 +20,7 @@ const Header = ({ user }: HeaderProps) => {
   const { logout } = useAuthStore();
   const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isPastHero, setIsPastHero] = useState(false);
   const [showCadastroModal, setShowCadastroModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
@@ -27,6 +28,8 @@ const Header = ({ user }: HeaderProps) => {
     const handleScroll = () => {
       const scrollTop = window.scrollY;
       setIsScrolled(scrollTop > 50);
+      // Assume Hero section is roughly 100vh. Switch contrast when passing it.
+      setIsPastHero(scrollTop > window.innerHeight - 80);
     };
 
     window.addEventListener('scroll', handleScroll);
@@ -55,26 +58,22 @@ const Header = ({ user }: HeaderProps) => {
   };
 
   return (
-    <header className={`${isScrolled ? 'fixed' : 'absolute'} top-0 left-0 right-0 z-50 transition-all duration-300 overflow-visible ${
-      isScrolled 
-        ? 'bg-blue-900/95 backdrop-blur-md shadow-lg' 
-        : 'bg-transparent backdrop-blur-sm'
-    }`}>
-      <div className="container flex h-16 md:h-24 items-center justify-between px-4 md:px-8">
+    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 overflow-visible bg-transparent`}>
+      <div className="container flex h-16 md:h-24 items-center justify-between md:justify-start px-4 md:px-8">
         <Link to="/" className="flex items-center h-full">
-          <WorkChoqueLogo showText={false} className="h-10 w-auto md:h-full" />
+          <WorkChoqueLogo showText={false} className="h-10 w-auto md:h-full" lightMode={isPastHero} />
         </Link>
 
-        <nav className="hidden md:flex items-center space-x-6">
+        <nav className="hidden md:flex items-center space-x-6 ml-auto mr-8">
           {!user && (
             <>
-              <Link to="/diagnostico" className={`transition-colors ${
-                isScrolled ? 'text-white/90 hover:text-white' : 'text-white/80 hover:text-white'
+              <Link to="/diagnostico" className={`transition-colors font-medium ${
+                isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
               }`}>
                 Diagnóstico
               </Link>
-              <Link to="/sobre" className={`transition-colors ${
-                isScrolled ? 'text-white/90 hover:text-white' : 'text-white/80 hover:text-white'
+              <Link to="/sobre" className={`transition-colors font-medium ${
+                isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
               }`}>
                 Sobre
               </Link>
@@ -83,20 +82,20 @@ const Header = ({ user }: HeaderProps) => {
           
           {user && (
             <>
-              <Link to="/dashboard" className={`transition-colors ${
-                isScrolled ? 'text-white/90 hover:text-white' : 'text-white/80 hover:text-white'
+              <Link to="/dashboard" className={`transition-colors font-medium ${
+                isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
               }`}>
                 Dashboard
               </Link>
               {user.role === 'user' && (
                 <>
-                  <Link to="/diagnosticos" className={`transition-colors ${
-                    isScrolled ? 'text-white/90 hover:text-white' : 'text-white/80 hover:text-white'
+                  <Link to="/diagnosticos" className={`transition-colors font-medium ${
+                    isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
                   }`}>
                     Meus Diagnósticos
                   </Link>
-                  <Link to="/conquistas" className={`transition-colors ${
-                    isScrolled ? 'text-white/90 hover:text-white' : 'text-white/80 hover:text-white'
+                  <Link to="/conquistas" className={`transition-colors font-medium ${
+                    isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
                   }`}>
                     Conquistas
                   </Link>
@@ -104,13 +103,13 @@ const Header = ({ user }: HeaderProps) => {
               )}
               {(user.role === 'admin' || user.role === 'master') && (
                 <>
-                  <Link to="/usuarios" className={`transition-colors ${
-                    isScrolled ? 'text-white/90 hover:text-white' : 'text-white/80 hover:text-white'
+                  <Link to="/usuarios" className={`transition-colors font-medium ${
+                    isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
                   }`}>
                     Usuários
                   </Link>
-                  <Link to="/relatorios" className={`transition-colors ${
-                    isScrolled ? 'text-white/90 hover:text-white' : 'text-white/80 hover:text-white'
+                  <Link to="/relatorios" className={`transition-colors font-medium ${
+                    isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
                   }`}>
                     Relatórios
                   </Link>
@@ -120,13 +119,15 @@ const Header = ({ user }: HeaderProps) => {
           )}
         </nav>
 
-        <div className="flex items-center space-x-2 md:space-x-4">
+        <div className="flex items-center space-x-2 md:space-x-4 pr-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setTheme(theme === "light" ? "dark" : "light")}
             className={`h-8 w-8 md:h-9 md:w-9 px-0 transition-colors ${
-              isScrolled ? 'text-white/90 hover:text-white hover:bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
+              isPastHero 
+                ? 'text-foreground hover:bg-accent/10' 
+                : 'text-white hover:text-white/80 hover:bg-white/10'
             }`}
           >
             <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
@@ -134,13 +135,15 @@ const Header = ({ user }: HeaderProps) => {
           </Button>
 
           {!user ? (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-4">
               <Button 
                 variant="ghost" 
                 onClick={handleLoginClick}
                 size="sm"
-                className={`transition-colors text-sm ${
-                  isScrolled ? 'text-white/90 hover:text-white hover:bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
+                className={`transition-colors text-sm font-medium ${
+                  isPastHero 
+                    ? 'text-foreground hover:bg-accent/10' 
+                    : 'text-white hover:text-white/80 hover:bg-white/10'
                 }`}
               >
                 Entrar
@@ -148,8 +151,10 @@ const Header = ({ user }: HeaderProps) => {
               <Button 
                 onClick={handleCadastroClick}
                 size="sm"
-                className={`transition-colors text-sm ${
-                  isScrolled ? 'bg-white/30 hover:bg-white/40 text-white border-white/40' : 'bg-white/20 hover:bg-white/30 text-white border-white/30'
+                className={`transition-colors text-sm font-medium ${
+                  isPastHero 
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
+                    : 'bg-white/20 hover:bg-white/30 text-white border border-white/30'
                 }`}
               >
                 Cadastrar
@@ -157,8 +162,8 @@ const Header = ({ user }: HeaderProps) => {
             </div>
           ) : (
             <div className="flex items-center space-x-2">
-              <span className={`text-sm transition-colors hidden md:inline-block ${
-                isScrolled ? 'text-white/90' : 'text-white/80'
+              <span className={`text-sm transition-colors hidden md:inline-block font-medium ${
+                isPastHero ? 'text-foreground' : 'text-white'
               }`}>
                 Olá, {user.name}
               </span>
@@ -167,9 +172,9 @@ const Header = ({ user }: HeaderProps) => {
                 size="sm" 
                 onClick={handleLogout}
                 className={`transition-all duration-200 ${
-                  isScrolled 
-                    ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' 
-                    : 'text-red-400/80 hover:text-red-300 hover:bg-red-500/10'
+                  isPastHero 
+                    ? 'text-destructive hover:text-destructive/80 hover:bg-destructive/10' 
+                    : 'text-red-200 hover:text-red-100 hover:bg-red-500/20'
                 }`}
               >
                 Sair
@@ -178,7 +183,9 @@ const Header = ({ user }: HeaderProps) => {
           )}
 
           <Button variant="ghost" size="sm" className={`md:hidden transition-colors ${
-            isScrolled ? 'text-white/90 hover:text-white hover:bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
+            isPastHero 
+              ? 'text-foreground hover:bg-accent/10' 
+              : 'text-white hover:text-white/80 hover:bg-white/10'
           }`}>
             <Menu className="h-5 w-5" />
           </Button>
