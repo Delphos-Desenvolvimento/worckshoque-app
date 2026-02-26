@@ -30,7 +30,7 @@ interface QuestionnaireTableProps {
   onRespond: (questionnaire: Questionnaire) => void;
   onViewDetails: (questionnaire: Questionnaire) => void;
   onEdit: (questionnaire: Questionnaire) => void;
-  onDelete: (questionnaire: Questionnaire) => void;
+  onDelete: (id: string) => void;
   onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
@@ -178,6 +178,16 @@ export default function QuestionnaireTable({
                           onClick={() => onEdit(questionnaire)}
                         >
                           <Edit className="w-3 h-3" />
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onDelete(questionnaire.id)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                       )}
                     </div>

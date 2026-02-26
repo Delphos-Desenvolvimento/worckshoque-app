@@ -13,9 +13,10 @@ interface HeaderProps {
     name: string;
     role: 'visitor' | 'user' | 'admin' | 'master';
   } | null;
+  onDiagnosticoClick?: () => void;
 }
 
-const Header = ({ user }: HeaderProps) => {
+const Header = ({ user, onDiagnosticoClick }: HeaderProps) => {
   const { theme, setTheme } = useTheme();
   const { logout } = useAuthStore();
   const navigate = useNavigate();
@@ -66,18 +67,14 @@ const Header = ({ user }: HeaderProps) => {
 
         <nav className="hidden md:flex items-center space-x-6 ml-auto mr-8">
           {!user && (
-            <>
-              <Link to="/diagnostico" className={`transition-colors font-medium ${
+            <button 
+              onClick={() => onDiagnosticoClick ? onDiagnosticoClick() : navigate('/diagnostico')}
+              className={`transition-colors font-medium bg-transparent border-none cursor-pointer ${
                 isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
-              }`}>
-                Diagnóstico
-              </Link>
-              <Link to="/sobre" className={`transition-colors font-medium ${
-                isPastHero ? 'text-foreground hover:text-primary' : 'text-white hover:text-white/80'
-              }`}>
-                Sobre
-              </Link>
-            </>
+              }`}
+            >
+              Diagnóstico
+            </button>
           )}
           
           {user && (

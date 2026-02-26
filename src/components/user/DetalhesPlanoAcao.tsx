@@ -19,6 +19,15 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import PageHeader from "@/components/common/PageHeader";
 
 // Ícones
@@ -50,7 +59,10 @@ import {
   ListTodo,
   CheckCircle2,
   AlertTriangle,
-  PlusCircle
+  PlusCircle,
+  Search,
+  UserPlus,
+  X
 } from 'lucide-react';
 
 // Utilitários
@@ -145,6 +157,12 @@ const DetalhesPlanoAcao = () => {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   
+  // Estados para modal de responsáveis
+  const [isResponsavelModalOpen, setIsResponsavelModalOpen] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [users, setUsers] = useState<{id: string, name: string, email: string, role: string}[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  
   // Adicionando log para rastrear renderizações
   console.log('🔍 DetalhesPlanoAcao renderizado com ID:', id);
   
@@ -201,6 +219,90 @@ const DetalhesPlanoAcao = () => {
       toast.error(error instanceof Error ? error.message : 'Erro ao atualizar status do plano');
     }
   };
+
+  // Carrega usuários quando o modal abre
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        // Busca usuários do sistema. Ajuste o endpoint conforme necessário.
+        // O endpoint /auth/users geralmente retorna { users: [], total: 0 } ou array direto
+        const response = await api.get('/auth/users?limit=50');
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Tenta extrair a lista de usuários de diferentes formatos possíveis
+          const userList = Array.isArray(data) ? data : (data.users || data.data || []);
+          
+          interface ApiUser { id: string; name: string; email: string; role: string }
+          setUsers(userList.map((u: ApiUser) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role
+          })));
+        }
+      } catch (error) {
+        console.error('Erro ao buscar usuários:', error);
+        // Não mostra erro para o usuário se falhar silenciosamente, apenas loga
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    if (isResponsavelModalOpen && users.length === 0) {
+      fetchUsers();
+    }
+  }, [isResponsavelModalOpen, users.length]);
+
+  // Função para adicionar responsável
+  const handleAddResponsavel = (user: {id: string, name: string}) => {
+    if (!plano) return;
+    
+    // Verifica se já existe
+    if (plano.responsaveis.some(r => r === user.name)) {
+      toast.info(`${user.name} já é um responsável.`);
+      return;
+    }
+    
+    // Atualiza estado local
+    const novosResponsaveis = [...plano.responsaveis, user.name];
+    
+    setPlano({
+      ...plano,
+      responsaveis: novosResponsaveis
+    });
+    
+    setIsResponsavelModalOpen(false);
+    toast.success(`${user.name} adicionado com sucesso!`);
+    
+    // Em um cenário real, faríamos uma chamada à API aqui
+    // api.post(`/action-plans/${plano.id}/assignees`, { userId: user.id });
+  };
+
+  // Função para remover responsável
+  const handleRemoveResponsavel = (name: string) => {
+    if (!plano) return;
+
+    // Atualiza estado local
+    const novosResponsaveis = plano.responsaveis.filter(r => r !== name);
+    
+    setPlano({
+      ...plano,
+      responsaveis: novosResponsaveis
+    });
+    
+    toast.success(`${name} removido com sucesso!`);
+    
+    // Em um cenário real, faríamos uma chamada à API aqui
+    // api.delete(`/action-plans/${plano.id}/assignees/${userId}`);
+  };
+
+  // Filtragem de usuários
+  const filteredUsers = users.filter(u => 
+    u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+    u.email.toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
 
   // Função auxiliar para obter o rótulo do status
   const getStatusLabel = (status: PlanoAcao['status']) => {
@@ -666,11 +768,22 @@ const DetalhesPlanoAcao = () => {
             <div className="space-y-3">
               {plano.responsaveis.length > 0 ? (
                 plano.responsaveis.map((responsavel, index) => (
-                  <div key={index} className="flex items-center">
-                    <div className="bg-primary/10 p-2 rounded-full mr-3">
-                      <Users className="h-4 w-4 text-primary" />
+                  <div key={index} className="flex items-center justify-between group">
+                    <div className="flex items-center">
+                      <div className="bg-primary/10 p-2 rounded-full mr-3">
+                        <Users className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="font-medium">{responsavel}</span>
                     </div>
-                    <span className="font-medium">{responsavel}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => handleRemoveResponsavel(responsavel)}
+                      title="Remover responsável"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 ))
               ) : (
@@ -679,15 +792,21 @@ const DetalhesPlanoAcao = () => {
                 </div>
               )}
             </div>
-            {/* Botão para adicionar responsáveis (pode ser implementado posteriormente) */}
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="w-full mt-3 text-primary"
-              onClick={() => {}}
-            >
-              + Adicionar responsável
-            </Button>
+            {/* Botão para adicionar responsáveis */}
+            <div className="relative z-10">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full mt-3 text-primary border-primary/20 hover:bg-primary/10 hover:border-primary/50 cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsResponsavelModalOpen(true);
+                }}
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Adicionar responsável
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -902,6 +1021,81 @@ const DetalhesPlanoAcao = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal de Adicionar Responsável */}
+      <Dialog open={isResponsavelModalOpen} onOpenChange={setIsResponsavelModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Adicionar Responsável</DialogTitle>
+            <DialogDescription>
+              Selecione um usuário da lista abaixo para atribuir a este plano de ação.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar usuário por nome ou email..."
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                className="pl-8"
+                autoFocus
+              />
+            </div>
+            
+            <ScrollArea className="h-[300px] rounded-md border p-2">
+              {loadingUsers ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : filteredUsers.length > 0 ? (
+                <div className="space-y-1">
+                  {filteredUsers.map((user) => {
+                    const isAlreadyAdded = plano.responsaveis.some(r => r === user.name);
+                    return (
+                      <div 
+                        key={user.id} 
+                        className={cn(
+                          "flex items-center justify-between p-2 rounded-md transition-colors",
+                          isAlreadyAdded ? "opacity-50 cursor-not-allowed bg-muted/50" : "hover:bg-muted cursor-pointer"
+                        )}
+                        onClick={() => !isAlreadyAdded && handleAddResponsavel(user)}
+                      >
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                              {user.name.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-medium truncate">{user.name}</span>
+                            <span className="text-xs text-muted-foreground truncate">{user.email}</span>
+                          </div>
+                        </div>
+                        {isAlreadyAdded ? (
+                          <Badge variant="outline" className="text-xs h-6">Adicionado</Badge>
+                        ) : (
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                  <Users className="h-8 w-8 text-muted-foreground mb-2 opacity-20" />
+                  <p className="text-sm text-muted-foreground">
+                    {userSearchTerm ? 'Nenhum usuário encontrado.' : 'Sem usuários disponíveis.'}
+                  </p>
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Barra de progresso fixa na parte inferior */}
       <div className="fixed bottom-0 left-0 right-0 h-1 bg-gray-200 z-40">

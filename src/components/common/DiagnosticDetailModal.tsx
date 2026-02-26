@@ -89,6 +89,13 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
     return 'bg-red-500';
   };
 
+  const getScoreTextColor = (score: number) => {
+    if (score >= 80) return 'text-green-600 dark:text-green-400';
+    if (score >= 60) return 'text-blue-600 dark:text-blue-400';
+    if (score >= 40) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
+  };
+
   const getScoreCategory = (score: number) => {
     if (score >= 80) return 'Excelente';
     if (score >= 60) return 'Bom';
@@ -106,6 +113,19 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Concluído';
+      case 'processing':
+        return 'Processando';
+      case 'failed':
+        return 'Falhou';
+      default:
+        return status;
     }
   };
 
@@ -161,8 +181,7 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                 {formatDate(diagnostic.generated_at)}
               </div>
               <Badge variant="secondary" className={getStatusColor(diagnostic.status)}>
-                {diagnostic.status === 'completed' ? 'Completo' : 
-                 diagnostic.status === 'processing' ? 'Processando' : 'Falhou'}
+                {getStatusLabel(diagnostic.status)}
               </Badge>
             </div>
           </div>
@@ -188,13 +207,24 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <div className="text-4xl font-bold text-primary">{diagnostic.score_intelligent}%</div>
-                <p className="text-sm text-muted-foreground">Score inteligente calculado pela IA</p>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex flex-col items-center md:items-start space-y-1">
+                <div className={`text-6xl font-bold tracking-tighter ${getScoreTextColor(diagnostic.score_intelligent)}`}>
+                  {diagnostic.score_intelligent}%
+                </div>
+                <p className="text-sm font-medium text-muted-foreground text-center md:text-left">Score inteligente calculado pela IA</p>
               </div>
-              <div className="w-64">
-                <Progress value={getScoreProgress(diagnostic.score_intelligent)} className="h-3" />
+              
+              <div className="w-full md:w-2/3 space-y-2">
+                <div className="flex justify-between text-xs font-medium text-muted-foreground">
+                  <span>0%</span>
+                  <span>50%</span>
+                  <span>100%</span>
+                </div>
+                <Progress value={getScoreProgress(diagnostic.score_intelligent)} className="h-4 w-full" />
+                <p className="text-xs text-muted-foreground text-center md:text-right pt-1">
+                  Categoria: <span className={`font-semibold ${getScoreTextColor(diagnostic.score_intelligent)}`}>{getScoreCategory(diagnostic.score_intelligent)}</span>
+                </p>
               </div>
             </div>
           </CardContent>
@@ -234,7 +264,13 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Nenhuma área específica identificada</p>
+                    <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
+                      <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full mb-3">
+                        <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">Excelente desempenho!</p>
+                      <p className="text-xs mt-1">Nenhuma área crítica identificada.</p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -290,7 +326,7 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Status</span>
                       <Badge variant="secondary" className={getStatusColor(diagnostic.status)}>
-                        {diagnostic.status}
+                        {getStatusLabel(diagnostic.status)}
                       </Badge>
                     </div>
                   </div>
@@ -393,13 +429,13 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                 {diagnostic.recommendations && diagnostic.recommendations.length > 0 ? (
                   <div className="space-y-4">
                     {diagnostic.recommendations.map((recommendation, index) => (
-                      <div key={index} className="flex items-start space-x-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                      <div key={index} className="flex items-start space-x-3 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/30 rounded-lg">
+                        <div className="w-8 h-8 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium mb-1">Recomendação #{index + 1}</p>
-                          <p className="text-sm text-muted-foreground">{recommendation}</p>
+                          <p className="text-sm font-medium mb-1 text-green-900 dark:text-green-100">Recomendação #{index + 1}</p>
+                          <p className="text-sm text-green-800 dark:text-green-300/90">{recommendation}</p>
                         </div>
                       </div>
                     ))}

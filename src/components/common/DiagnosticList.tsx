@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Eye, Calendar, Target, Award } from 'lucide-react';
+import { Eye, Calendar, Target, Award, Trash2 } from 'lucide-react';
 
 interface Diagnostic {
   id: string;
@@ -27,10 +27,11 @@ interface Diagnostic {
 interface DiagnosticListProps {
   diagnostics: Diagnostic[];
   onViewDiagnostic: (diagnostic: Diagnostic) => void;
+  onDeleteDiagnostic?: (id: string) => void;
   showOwner?: boolean;
 }
 
-const DiagnosticList = ({ diagnostics, onViewDiagnostic, showOwner }: DiagnosticListProps) => {
+const DiagnosticList = ({ diagnostics, onViewDiagnostic, onDeleteDiagnostic, showOwner }: DiagnosticListProps) => {
   const getCategoryColor = (score: number) => {
     if (score >= 80) return 'bg-green-500';
     if (score >= 60) return 'bg-blue-500';
@@ -151,6 +152,19 @@ const DiagnosticList = ({ diagnostics, onViewDiagnostic, showOwner }: Diagnostic
                     <Eye className="h-4 w-4 mr-2" />
                     Ver detalhes
                   </Button>
+                  {onDeleteDiagnostic && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteDiagnostic(diagnostic.id);
+                      }}
+                      className="flex items-center text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

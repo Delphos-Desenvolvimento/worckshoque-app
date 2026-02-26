@@ -120,10 +120,37 @@ const Diagnostico: React.FC<DiagnosticoProps> = ({ mode = 'page', onComplete }) 
     }
   };
 
-  const handleSubmit = async () => {
+  const calculateCompletenessScore = () => {
+    let score = 0;
+    
+    // Step 0: Basic Info (3 fields, 10 points each)
+    if (spec.title.trim().length > 5) score += 10;
+    if (spec.area.trim().length > 3) score += 10;
+    if (spec.teamSize.trim().length > 0) score += 10;
+    
+    // Step 1: Problems & Goals (2 fields, 20 points each)
+    // More points for detailed descriptions
+    if (spec.painPoints.trim().length > 10) score += 10;
+    if (spec.painPoints.trim().length > 50) score += 10;
+    
+    if (spec.goals.trim().length > 10) score += 10;
+    if (spec.goals.trim().length > 50) score += 10;
+    
+    // Step 2: Urgency & Timeframe (2 fields, 10 points each)
+    if (spec.urgency) score += 10;
+    if (spec.timeframe) score += 10;
+    
+    // Step 3: Description (Optional, 10 bonus points)
+    if (spec.description && spec.description.trim().length > 10) score += 10;
+    
+    return Math.min(score, 100);
+  };
 
+  const handleSubmit = async () => {
     try {
       setSubmitting(true);
+
+      const completenessScore = calculateCompletenessScore();
 
       const payload = {
         title: spec.title,
@@ -136,6 +163,7 @@ const Diagnostico: React.FC<DiagnosticoProps> = ({ mode = 'page', onComplete }) 
         timeframe: spec.timeframe,
         userId: user?.id,
         company: user?.company,
+        initialScore: completenessScore, // Send the calculated score
       };
 
       const response = await api.post('/api/diagnostics', payload);

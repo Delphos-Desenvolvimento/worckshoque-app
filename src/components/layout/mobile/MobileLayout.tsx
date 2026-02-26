@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Menu, User as UserIcon, LogOut } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { usePermissions } from "@/contexts/PermissionsContext";
+import { usePermissions, Permission } from "@/contexts/PermissionsContext";
 import { menuConfig } from "../sidebarConfig";
 import { NavLink, useNavigate } from "react-router-dom";
 import NotificationCenter from "@/components/common/NotificationCenter";
@@ -22,7 +22,7 @@ export function MobileLayout({ children }: MobileLayoutProps) {
   const navigate = useNavigate();
 
   // Helper to check if category has visible items
-  const hasVisibleItems = (items: any[]) => {
+  const hasVisibleItems = (items: { permission: Permission }[]) => {
     return items.some(item => hasPermission(item.permission));
   };
 

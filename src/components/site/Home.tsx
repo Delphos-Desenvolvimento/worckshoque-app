@@ -18,7 +18,7 @@ const Home: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header onDiagnosticoClick={handleDiagnosticoClick} />
       
       <HeroSection onDiagnosticoClick={handleDiagnosticoClick} />
       <FeaturesSection />

@@ -525,6 +525,37 @@ export default function Questionarios() {
     }
   };
 
+  const handleDeleteQuestionnaire = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este questionário? Esta ação não pode ser desfeita e excluirá todos os diagnósticos e respostas associados.')) {
+      return;
+    }
+
+    try {
+      if (!token) {
+        throw new Error('Token de autenticação não encontrado');
+      }
+
+      await api.delete(`/questionnaires/${id}`);
+
+      // Atualizar lista localmente
+      setQuestionnaires(prev => prev.filter(q => q.id !== id));
+      
+      toast.success('Questionário excluído com sucesso');
+    } catch (error: unknown) {
+      console.error('Erro ao excluir questionário:', error);
+      
+      let errorMsg = 'Erro ao excluir questionário. Tente novamente.';
+      
+      if (error instanceof Error) {
+        errorMsg = error.message;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMsg = String(error.message);
+      }
+      
+      toast.error(errorMsg);
+    }
+  };
+
   const handleNextQuestion = () => {
     if (!selectedQuestionnaire?.questions) return;
     
@@ -740,7 +771,7 @@ export default function Questionarios() {
               onRespond={handleRespond}
               onViewDetails={handleViewDetails}
               onEdit={handleEditQuestionnaire}
-              onDelete={() => {}}
+              onDelete={handleDeleteQuestionnaire}
               onToggleActive={handleToggleActive}
               canEdit={canEdit}
               canDelete={canDelete}
@@ -752,7 +783,7 @@ export default function Questionarios() {
               onRespond={handleRespond}
               onViewDetails={handleViewDetails}
               onEdit={handleEditQuestionnaire}
-              onDelete={() => {}}
+              onDelete={handleDeleteQuestionnaire}
               onToggleActive={handleToggleActive}
               canEdit={canEdit}
               canDelete={canDelete}
@@ -764,7 +795,7 @@ export default function Questionarios() {
               onRespond={handleRespond}
               onViewDetails={handleViewDetails}
               onEdit={handleEditQuestionnaire}
-              onDelete={() => {}}
+              onDelete={handleDeleteQuestionnaire}
               onToggleActive={handleToggleActive}
               canEdit={canEdit}
               canDelete={canDelete}
@@ -776,7 +807,7 @@ export default function Questionarios() {
               onRespond={handleRespond}
               onViewDetails={handleViewDetails}
               onEdit={handleEditQuestionnaire}
-              onDelete={() => {}}
+              onDelete={handleDeleteQuestionnaire}
               onToggleActive={handleToggleActive}
               canEdit={canEdit}
               canDelete={canDelete}
@@ -898,7 +929,8 @@ export default function Questionarios() {
                     selectedQuestionnaire.questions[currentQuestionIndex].type === 'multiple_choice' || 
                     selectedQuestionnaire.questions[currentQuestionIndex].type === 'escala' || 
                     selectedQuestionnaire.questions[currentQuestionIndex].type === 'scale' ||
-                    selectedQuestionnaire.questions[currentQuestionIndex].type === 'boolean') && (
+                    selectedQuestionnaire.questions[currentQuestionIndex].type === 'boolean' ||
+                    selectedQuestionnaire.questions[currentQuestionIndex].type === 'yes_no') && (
                     <RadioGroup 
                       value={answers[selectedQuestionnaire.questions[currentQuestionIndex].id] || ''} 
                       onValueChange={handleAnswerChange}
@@ -944,15 +976,28 @@ export default function Questionarios() {
                           </div>
                         </div>
                       ) : (
-                        /* Lógica padrão para Choice/Boolean */
-                        selectedQuestionnaire.questions[currentQuestionIndex].options.map((option) => (
-                          <div key={option.id} className="flex items-center space-x-2 border p-3 rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => handleAnswerChange(option.value)}>
-                            <RadioGroupItem value={option.value} id={`option-${option.id}`} />
-                            <Label htmlFor={`option-${option.id}`} className="flex-1 cursor-pointer font-normal">
-                              {option.label || option.value}
-                            </Label>
-                          </div>
-                        ))
+                        /* Lógica padrão para Choice/Boolean/YesNo */
+                        (() => {
+                          const currentQuestion = selectedQuestionnaire.questions[currentQuestionIndex];
+                          const hasOptions = currentQuestion.options && currentQuestion.options.length > 0;
+                          
+                          // Se for boolean ou yes_no e não tiver opções, usar padrão Sim/Não
+                          const optionsToRender = (!hasOptions && (currentQuestion.type === 'boolean' || currentQuestion.type === 'yes_no')) 
+                            ? [
+                                { id: 'yes', value: 'true', label: 'Sim' },
+                                { id: 'no', value: 'false', label: 'Não' }
+                              ]
+                            : currentQuestion.options || [];
+
+                          return optionsToRender.map((option) => (
+                            <div key={option.id || option.value} className="flex items-center space-x-2 border p-3 rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => handleAnswerChange(option.value)}>
+                              <RadioGroupItem value={option.value} id={`option-${option.id || option.value}`} />
+                              <Label htmlFor={`option-${option.id || option.value}`} className="flex-1 cursor-pointer font-normal">
+                                {option.label || option.value}
+                              </Label>
+                            </div>
+                          ));
+                        })()
                       )}
                     </RadioGroup>
                   )}

@@ -1,8 +1,16 @@
 import { useEffect } from "react";
 
+interface VLibrasWidget {
+  new (url: string): void;
+}
+
+interface VLibras {
+  Widget: VLibrasWidget;
+}
+
 declare global {
   interface Window {
-    VLibras: any;
+    VLibras: VLibras;
   }
 }
 

@@ -25,3 +25,8 @@ export async function getDiagnostic(id: string): Promise<DiagnosticDto> {
   if (!res.ok) throw new Error(`Falha ao obter diagnóstico: ${res.status}`);
   return res.json();
 }
+
+export async function deleteDiagnostic(id: string): Promise<void> {
+  const res = await api.delete(`/api/diagnostics/${id}`);
+  if (!res.ok) throw new Error(`Falha ao excluir diagnóstico: ${res.status}`);
+}

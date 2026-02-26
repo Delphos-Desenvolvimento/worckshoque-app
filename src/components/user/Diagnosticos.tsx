@@ -12,9 +12,10 @@ import DiagnosticTimeline from '@/components/common/DiagnosticTimeline';
 import DiagnosticDetailModal from '@/components/common/DiagnosticDetailModal';
 import ModalLayout from '@/components/common/ModalLayout';
 import Diagnostico from '@/components/user/Diagnostico';
-import { listDiagnostics } from '@/lib/diagnostics-api';
+import { listDiagnostics, deleteDiagnostic } from '@/lib/diagnostics-api';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { BarChart3, Filter, Grid3X3, List, Plus, Search, Calendar } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface DiagnosticUser {
   id: string;
@@ -114,6 +115,21 @@ const Diagnosticos: React.FC = () => {
   const handleCloseDetail = () => {
     setIsDetailOpen(false);
     setSelectedDiagnostic(null);
+  };
+
+  const handleDeleteDiagnostic = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este diagnóstico? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    
+    try {
+      await deleteDiagnostic(id);
+      setDiagnostics(prev => prev.filter(d => d.id !== id));
+      toast.success('Diagnóstico excluído com sucesso');
+    } catch (err) {
+      console.error('Erro ao excluir diagnóstico:', err);
+      toast.error('Erro ao excluir diagnóstico');
+    }
   };
 
   const showOwner =
@@ -235,6 +251,7 @@ const Diagnosticos: React.FC = () => {
               <DiagnosticGrid
                 diagnostics={filteredDiagnostics}
                 onViewDiagnostic={handleViewDiagnostic}
+                onDeleteDiagnostic={handleDeleteDiagnostic}
                 showOwner={showOwner}
               />
             )}
@@ -242,6 +259,7 @@ const Diagnosticos: React.FC = () => {
               <DiagnosticList
                 diagnostics={filteredDiagnostics}
                 onViewDiagnostic={handleViewDiagnostic}
+                onDeleteDiagnostic={handleDeleteDiagnostic}
                 showOwner={showOwner}
               />
             )}
@@ -249,6 +267,7 @@ const Diagnosticos: React.FC = () => {
               <DiagnosticTimeline
                 diagnostics={filteredDiagnostics}
                 onViewDiagnostic={handleViewDiagnostic}
+                onDeleteDiagnostic={handleDeleteDiagnostic}
                 showOwner={showOwner}
               />
             )}

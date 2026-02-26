@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Eye, Calendar, Target, Award, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Eye, Calendar, Target, Award, TrendingUp, TrendingDown, Minus, Trash2 } from 'lucide-react';
 
 interface Diagnostic {
   id: string;
@@ -27,10 +27,11 @@ interface Diagnostic {
 interface DiagnosticTimelineProps {
   diagnostics: Diagnostic[];
   onViewDiagnostic: (diagnostic: Diagnostic) => void;
+  onDeleteDiagnostic?: (id: string) => void;
   showOwner?: boolean;
 }
 
-const DiagnosticTimeline = ({ diagnostics, onViewDiagnostic, showOwner }: DiagnosticTimelineProps) => {
+const DiagnosticTimeline = ({ diagnostics, onViewDiagnostic, onDeleteDiagnostic, showOwner }: DiagnosticTimelineProps) => {
   const getCategoryColor = (score: number) => {
     if (score >= 80) return 'bg-green-500';
     if (score >= 60) return 'bg-blue-500';
@@ -180,6 +181,19 @@ const DiagnosticTimeline = ({ diagnostics, onViewDiagnostic, showOwner }: Diagno
                         <Eye className="h-4 w-4 mr-2" />
                         Ver detalhes
                       </Button>
+                      {onDeleteDiagnostic && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteDiagnostic(diagnostic.id);
+                          }}
+                          className="flex items-center text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>

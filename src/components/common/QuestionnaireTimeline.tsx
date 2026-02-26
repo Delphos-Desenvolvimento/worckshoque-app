@@ -30,7 +30,7 @@ interface QuestionnaireTimelineProps {
   onRespond: (questionnaire: Questionnaire) => void;
   onViewDetails: (questionnaire: Questionnaire) => void;
   onEdit: (questionnaire: Questionnaire) => void;
-  onDelete: (questionnaire: Questionnaire) => void;
+  onDelete: (id: string) => void;
   onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
@@ -211,6 +211,16 @@ export default function QuestionnaireTimeline({
                                 className="opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <Edit className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onDelete(questionnaire.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="w-4 h-4" />
                               </Button>
                             )}
                           </div>
