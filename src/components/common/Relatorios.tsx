@@ -348,6 +348,16 @@ interface AuditReportData {
 
 
 
+const periodToRange = (p: string) => {
+  const to = new Date();
+  const from = new Date();
+  if (p === '7d') from.setDate(to.getDate() - 7);
+  else if (p === '30d') from.setDate(to.getDate() - 30);
+  else if (p === '90d') from.setDate(to.getDate() - 90);
+  else if (p === '1y') from.setFullYear(to.getFullYear() - 1);
+  return { from: from.toISOString(), to: to.toISOString() };
+};
+
 export default function Relatorios() {
   const { user } = useAuthStore();
   const { hasPermission } = usePermissions();
@@ -362,47 +372,44 @@ export default function Relatorios() {
   const [platformHistory, setPlatformHistory] = useState<PlatformHistoryItem[] | null>(null);
   const [companyOwnerData, setCompanyOwnerData] = useState<CompanyOwnerReportData | null>(null);
   const [auditRefreshTick, setAuditRefreshTick] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const periodToRange = (p: string) => {
-    const to = new Date();
-    const from = new Date();
-    if (p === '7d') from.setDate(to.getDate() - 7);
-    else if (p === '30d') from.setDate(to.getDate() - 30);
-    else if (p === '90d') from.setDate(to.getDate() - 90);
-    else if (p === '1y') from.setFullYear(to.getFullYear() - 1);
-    return { from: from.toISOString(), to: to.toISOString() };
-  };
-
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
+    setIsLoading(true);
     const range = periodToRange(selectedPeriod);
     
-    if (user?.role === 'user') {
-      if (!user.company) {
-        setCompanyOwnerData(null);
-        return;
+    try {
+      if (user?.role === 'user') {
+        if (!user.company) {
+          setCompanyOwnerData(null);
+          return;
+        }
+        try {
+          const data = await getCompanyDashboard(range, user.company);
+          setCompanyOwnerData(data);
+        } catch (error) {
+          console.error('Erro ao carregar dashboard da empresa:', error);
+          setCompanyOwnerData(null);
+        }
+      } else if (user?.role === 'master' || user?.role === 'admin') {
+        await Promise.all([
+          getOverview(range).then(setOverviewData).catch(() => setOverviewData(null)),
+          getPlatformUsage(range).then(setPlatformUsage).catch(() => setPlatformUsage(null)),
+          getFinancialSummary(range).then(setFinancialSummary).catch(() => setFinancialSummary(null)),
+          getClientsTop(range, 10, 'revenue').then(setClientsTop).catch(() => setClientsTop([])),
+          getFinancialHistory(range).then(setFinancialHistory).catch(() => setFinancialHistory(null)),
+          getClientsHistory(range).then(setClientsHistory).catch(() => setClientsHistory(null)),
+          getPlatformHistory(range).then(setPlatformHistory).catch(() => setPlatformHistory(null))
+        ]);
       }
-      try {
-        const data = await getCompanyDashboard(range, user.company);
-        setCompanyOwnerData(data);
-      } catch (error) {
-        console.error('Erro ao carregar dashboard da empresa:', error);
-        setCompanyOwnerData(null);
-      }
-    } else if (user?.role === 'master' || user?.role === 'admin') {
-      try { const d = await getOverview(range); setOverviewData(d); } catch { setOverviewData(null); }
-      try { const p = await getPlatformUsage(range); setPlatformUsage(p); } catch { setPlatformUsage(null); }
-      try { const f = await getFinancialSummary(range); setFinancialSummary(f); } catch { setFinancialSummary(null); }
-      try { const c = await getClientsTop(range, 10, 'revenue'); setClientsTop(c); } catch { setClientsTop([]); }
-      try { const fh = await getFinancialHistory(range); setFinancialHistory(fh); } catch { setFinancialHistory(null); }
-      try { const ch = await getClientsHistory(range); setClientsHistory(ch); } catch { setClientsHistory(null); }
-      try { const ph = await getPlatformHistory(range); setPlatformHistory(ph); } catch { setPlatformHistory(null); }
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [selectedPeriod, user?.role, user?.company]);
 
   useEffect(() => {
     fetchReports();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPeriod, activeTab]);
+  }, [fetchReports]);
 
   const canViewReports = hasPermission('relatorio.view');
 
@@ -720,12 +727,21 @@ export default function Relatorios() {
       return <AuditReports activeTab={activeTab} refreshTick={auditRefreshTick} />;
     }
 
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+
     switch (config.dataType) {
       case 'companyOwner':
         if (!companyOwnerData) {
           return (
-            <div className="flex items-center justify-center h-64">
-              <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+              <BarChart3 className="w-12 h-12 mb-4 opacity-50" />
+              <p>Nenhum dado disponível</p>
             </div>
           );
         }

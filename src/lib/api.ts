@@ -66,8 +66,12 @@ export const apiRequest = async (
   const authStore = useAuthStore.getState();
   const token = authStore.token;
   
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
   const config: RequestInit = {
     ...options,
+    signal: options.signal || controller.signal,
     headers: {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -85,9 +89,12 @@ export const apiRequest = async (
     : rawEndpoint;
   const url = `${base}/${normalizedEndpoint}`;
   // console.log('Fazendo requisição para:', url); // Removido log excessivo
-  const response = await fetch(url, config);
   
-  if (response.status === 401) {
+  try {
+    const response = await fetch(url, config);
+    clearTimeout(timeoutId);
+    
+    if (response.status === 401) {
     if (!isRedirecting) {
       isRedirecting = true;
       console.warn('API 401 detectado, invalidando sessão e redirecionando');
@@ -104,6 +111,10 @@ export const apiRequest = async (
   }
   
   return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
 };
 
 // Métodos de conveniência

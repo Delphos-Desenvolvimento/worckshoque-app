@@ -166,7 +166,7 @@
   }
 
   .achievement-badge.unlocked {
-    @apply workchoque-glow;
+    box-shadow: var(--shadow-glow);
   }
 
   /* Modal Animations */
@@ -175,7 +175,8 @@
   }
   
   .modal-enter-active {
-    @apply opacity-100 scale-100 workchoque-bounce;
+    @apply opacity-100 scale-100;
+    transition: var(--transition-bounce);
   }
   
   .modal-exit {
@@ -183,6 +184,7 @@
   }
   
   .modal-exit-active {
-    @apply opacity-0 scale-95 workchoque-transition;
+    @apply opacity-0 scale-95;
+    transition: var(--transition-smooth);
   }
 }

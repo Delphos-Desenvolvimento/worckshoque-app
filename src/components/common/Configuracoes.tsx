@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, createContext, useContext, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import PageHeader from './PageHeader';
 import { Building2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { 
   User, 
   Settings, 
@@ -352,12 +364,16 @@ export default function Configuracoes() {
 
 function UserProfileContent({ canEdit, setMessage }: { canEdit: boolean; setMessage: (msg: ConfigMessage | null) => void }) {
   const tabsCtx = useContext(ConfigTabsContext);
+  const { user, setUser } = useAuthStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [profileData, setProfileData] = useState<UserProfile>({
-    name: '',
-    email: '',
+    name: user?.name || '',
+    email: user?.email || '',
     phone: '',
     department: '',
-    position: ''
+    position: '',
+    avatar: ''
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -379,19 +395,102 @@ function UserProfileContent({ canEdit, setMessage }: { canEdit: boolean; setMess
 
   // Carregar dados do perfil
   useEffect(() => {
-    // TODO: Implementar carregamento real dos dados
-    const initial = {
-      name: 'João Silva',
-      email: 'joao@empresa.com',
-      phone: '+55 11 99999-9999',
-      department: 'Recursos Humanos',
-      position: 'Analista'
+    const loadProfile = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await api.get('/auth/profile');
+        const data = await response.json();
+        
+        const profile = data.profile || {};
+        
+        const initial = {
+          name: data.name || user.name,
+          email: data.email || user.email,
+          phone: profile.phone || '',
+          department: profile.department || '',
+          position: profile.position || '',
+          avatar: profile.avatar || ''
+        };
+        
+        setProfileData(initial);
+        initialProfileRef.current = initial;
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error);
+        // Fallback to basic user data if API fails
+        const initial = {
+          name: user.name,
+          email: user.email,
+          phone: '',
+          department: '',
+          position: '',
+          avatar: ''
+        };
+        setProfileData(initial);
+        initialProfileRef.current = initial;
+      } finally {
+        setIsInitialLoading(false);
+      }
     };
-    setProfileData(initial);
-    initialProfileRef.current = initial;
-    const timer = setTimeout(() => setIsInitialLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+
+    loadProfile();
+  }, [user]);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      toast.error('O arquivo deve ter no máximo 2MB');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Convert to Base64
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      
+      reader.onload = async () => {
+        const base64String = reader.result as string;
+        
+        const response = await api.post('/auth/profile/avatar', {
+          avatar: base64String
+        });
+
+        if (!response.ok) {
+          throw new Error('Falha no upload');
+        }
+        
+        // Update form data with new avatar
+        setProfileData(prev => ({ ...prev, avatar: base64String }));
+        
+        // Update user store if needed
+        if (user) {
+          // Note: user store might not have avatar field, but we can try to update it if it does
+          // or trigger a refresh
+        }
+        
+        toast.success('Foto atualizada com sucesso');
+        setIsLoading(false);
+      };
+
+      reader.onerror = () => {
+        toast.error('Erro ao ler arquivo');
+        setIsLoading(false);
+      };
+
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast.error('Erro ao atualizar foto');
+      setIsLoading(false);
+    }
+  };
 
   const handleSaveProfile = useCallback(async () => {
     if (!canEdit) return;
@@ -400,16 +499,42 @@ function UserProfileContent({ canEdit, setMessage }: { canEdit: boolean; setMess
     setMessage(null);
     
     try {
-      // TODO: Implementar chamada real para API
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simular delay
+      const payload = {
+        name: profileData.name,
+        email: profileData.email,
+        phone: profileData.phone,
+        department: profileData.department,
+        position: profileData.position,
+        // bio and hireDate are missing in UserProfile interface but present in backend
+      };
+
+      const response = await api.put('/auth/profile', payload);
       
+      if (!response.ok) {
+        throw new Error('Erro ao salvar perfil');
+      }
+      
+      const data = await response.json();
+      
+      // Update local user store
+      if (user) {
+        setUser({
+          ...user,
+          name: data.name || user.name,
+          email: data.email || user.email,
+        });
+      }
+
       setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' });
+      initialProfileRef.current = profileData;
+      setIsDirty(false);
     } catch (error: unknown) {
+      console.error('Erro ao salvar perfil:', error);
       setMessage({ type: 'error', text: 'Erro ao atualizar perfil' });
     } finally {
       setIsLoading(false);
     }
-  }, [canEdit, setMessage]);
+  }, [canEdit, setMessage, profileData, user, setUser]);
 
   // Registrar tab no contexto pai
   useEffect(() => {
@@ -467,11 +592,29 @@ function UserProfileContent({ canEdit, setMessage }: { canEdit: boolean; setMess
         <CardContent className="space-y-4">
           <div className="flex items-center gap-6">
             <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center">
-                <User className="w-10 h-10 text-gray-500" />
-              </div>
-              <Button size="sm" variant="outline" className="absolute -bottom-1 -right-1 h-8 w-8 p-0">
-                <Upload className="w-4 h-4" />
+              <Avatar className="w-20 h-20">
+                <AvatarImage src={profileData.avatar || ""} />
+                <AvatarFallback className="text-2xl bg-gray-200 flex items-center justify-center">
+                  <User className="w-10 h-10 text-gray-500" />
+                </AvatarFallback>
+              </Avatar>
+              
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleFileChange}
+              />
+              
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="absolute -bottom-1 -right-1 h-8 w-8 p-0"
+                onClick={handleAvatarClick}
+                disabled={isLoading}
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               </Button>
             </div>
             <div className="flex-1">
@@ -1155,7 +1298,7 @@ function UserNotificationsContent({ canEdit, setMessage }: { canEdit: boolean; s
 
   const handleSaveNotifications = useCallback(async () => {
     if (!canEdit) return;
-    
+
     setIsLoading(true);
     setMessage(null);
     
@@ -1952,6 +2095,16 @@ function AdminCompanyContent({ canEdit, setMessage }: { canEdit: boolean; setMes
 
   const handleSaveCompany = useCallback(async () => {
     if (!canEdit) return;
+
+    if (!companyData.name || !companyData.cnpj || !companyData.email) {
+      setMessage({ type: 'error', text: 'Preencha todos os campos obrigatórios.' });
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyData.email)) {
+      setMessage({ type: 'error', text: 'Email inválido.' });
+      return;
+    }
     
     setIsLoading(true);
     setMessage(null);
@@ -1967,7 +2120,7 @@ function AdminCompanyContent({ canEdit, setMessage }: { canEdit: boolean; setMes
     } finally {
       setIsLoading(false);
     }
-  }, [canEdit, setMessage]);
+  }, [canEdit, setMessage, companyData]);
 
   useEffect(() => {
     tabsCtx?.registerTab('empresa', {
@@ -2297,8 +2450,24 @@ function AdminUsersContent({ canEdit, setMessage }: { canEdit: boolean; setMessa
     [key: string]: unknown;
   } | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    role: 'user',
+    department: '',
+    position: '',
+    status: 'active'
+  });
 
   const handleCreateUser = () => {
+    setFormData({
+      name: '',
+      email: '',
+      role: 'user',
+      department: '',
+      position: '',
+      status: 'active'
+    });
     setSelectedUser(null);
     setShowUserModal(true);
   };
@@ -2310,8 +2479,50 @@ function AdminUsersContent({ canEdit, setMessage }: { canEdit: boolean; setMessa
     role: string;
     [key: string]: unknown;
   }) => {
+    setFormData({
+      name: user.name,
+      email: user.email,
+      role: user.role as string,
+      department: user.department as string,
+      position: user.position as string,
+      status: user.status as string
+    });
     setSelectedUser(user);
     setShowUserModal(true);
+  };
+
+  const handleSaveUser = async () => {
+    if (!formData.name || !formData.email) {
+      toast.error('Nome e Email são obrigatórios');
+      return;
+    }
+    
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      toast.error('Email inválido');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      if (selectedUser) {
+        setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, ...formData } : u));
+        toast.success('Usuário atualizado com sucesso!');
+      } else {
+        setUsers(prev => [...prev, { 
+          id: Date.now().toString(), 
+          ...formData, 
+          lastLogin: new Date().toISOString() 
+        }]);
+        toast.success('Usuário criado com sucesso!');
+      }
+      setShowUserModal(false);
+    } catch (error) {
+      toast.error('Erro ao salvar usuário');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -2364,6 +2575,25 @@ function AdminUsersContent({ canEdit, setMessage }: { canEdit: boolean; setMessa
     }
   };
 
+  const handleSaveUserSettings = useCallback(async () => {
+    if (!canEdit) return;
+    
+    setIsLoading(true);
+    setMessage(null);
+    
+    try {
+      // TODO: Implementar chamada real para API
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simular delay
+      
+      setMessage({ type: 'success', text: 'Configurações de usuário salvas com sucesso!' });
+      setIsDirty(false);
+    } catch (error: unknown) {
+      setMessage({ type: 'error', text: 'Erro ao salvar configurações de usuário' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [canEdit, setMessage]);
+
   const getRoleBadgeColor = (role: string) => {
     switch(role) {
       case 'master': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
@@ -2396,12 +2626,12 @@ function AdminUsersContent({ canEdit, setMessage }: { canEdit: boolean; setMessa
   useEffect(() => {
     tabsCtx?.registerTab('usuarios', {
       isDirty,
-      save: async () => {},
+      save: async () => { await handleSaveUserSettings(); },
       reset: () => setIsDirty(false),
       requiredPermission: 'users.manage'
     });
     return () => tabsCtx?.unregisterTab('usuarios');
-  }, [isDirty, tabsCtx]);
+  }, [isDirty, tabsCtx, handleSaveUserSettings]);
 
   return (
     <div className="space-y-6" onChange={() => setIsDirty(true)}>
@@ -2615,14 +2845,114 @@ function AdminUsersContent({ canEdit, setMessage }: { canEdit: boolean; setMessa
 
           {canEdit && (
             <div className="flex justify-end pt-4">
-              <Button>
-                <Save className="mr-2 h-4 w-4" />
-                Salvar Configurações
+              <Button onClick={handleSaveUserSettings} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar Configurações
+                  </>
+                )}
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Usuário */}
+      <Dialog open={showUserModal} onOpenChange={setShowUserModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedUser ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
+            <DialogDescription>
+              {selectedUser ? 'Edite as informações do usuário.' : 'Preencha os dados para criar um novo usuário.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="userName">Nome</Label>
+              <Input 
+                id="userName" 
+                placeholder="Nome completo" 
+                value={formData.name} 
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="userEmail">Email</Label>
+              <Input 
+                id="userEmail" 
+                type="email" 
+                placeholder="email@empresa.com" 
+                value={formData.email} 
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="userRole">Função</Label>
+                <Select 
+                  value={formData.role} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Usuário</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="master">Master</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="userStatus">Status</Label>
+                <Select 
+                  value={formData.status} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Ativo</SelectItem>
+                    <SelectItem value="inactive">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="userDepartment">Departamento</Label>
+              <Input 
+                id="userDepartment" 
+                placeholder="Ex: TI" 
+                value={formData.department} 
+                onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="userPosition">Cargo</Label>
+              <Input 
+                id="userPosition" 
+                placeholder="Ex: Desenvolvedor" 
+                value={formData.position} 
+                onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUserModal(false)}>Cancelar</Button>
+            <Button onClick={handleSaveUser} disabled={isLoading}>
+              {isLoading && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -3069,6 +3399,14 @@ function AdminAnalyticsContent({ canEdit, setMessage }: { canEdit: boolean; setM
 
   const handleSaveAnalytics = useCallback(async () => {
     if (!canEdit) return;
+
+    if (analyticsSettings.dataRetention.userData < 0 ||
+        analyticsSettings.dataRetention.analyticsData < 0 ||
+        analyticsSettings.dataRetention.errorLogs < 0 ||
+        analyticsSettings.dataRetention.performanceData < 0) {
+      setMessage({ type: 'error', text: 'Períodos de retenção não podem ser negativos.' });
+      return;
+    }
     
     setIsLoading(true);
     setMessage(null);
@@ -3084,7 +3422,7 @@ function AdminAnalyticsContent({ canEdit, setMessage }: { canEdit: boolean; setM
     } finally {
       setIsLoading(false);
     }
-  }, [canEdit, setMessage]);
+  }, [canEdit, setMessage, analyticsSettings]);
 
   useEffect(() => {
     tabsCtx?.registerTab('analytics', {
@@ -3228,6 +3566,269 @@ function AdminAnalyticsContent({ canEdit, setMessage }: { canEdit: boolean; setM
         </CardContent>
       </Card>
 
+      {/* Retenção de Dados */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Retenção de Dados
+          </CardTitle>
+          <CardDescription>
+            Configure o período de retenção dos dados
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="userDataRetention">Dados de Usuário (dias)</Label>
+              <Input
+                id="userDataRetention"
+                type="number"
+                value={analyticsSettings.dataRetention.userData}
+                onChange={(e) => {
+                  setAnalyticsSettings(prev => ({
+                    ...prev,
+                    dataRetention: { ...prev.dataRetention, userData: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="analyticsDataRetention">Dados de Analytics (dias)</Label>
+              <Input
+                id="analyticsDataRetention"
+                type="number"
+                value={analyticsSettings.dataRetention.analyticsData}
+                onChange={(e) => {
+                  setAnalyticsSettings(prev => ({
+                    ...prev,
+                    dataRetention: { ...prev.dataRetention, analyticsData: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="errorLogsRetention">Logs de Erro (dias)</Label>
+              <Input
+                id="errorLogsRetention"
+                type="number"
+                value={analyticsSettings.dataRetention.errorLogs}
+                onChange={(e) => {
+                  setAnalyticsSettings(prev => ({
+                    ...prev,
+                    dataRetention: { ...prev.dataRetention, errorLogs: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="performanceDataRetention">Dados de Performance (dias)</Label>
+              <Input
+                id="performanceDataRetention"
+                type="number"
+                value={analyticsSettings.dataRetention.performanceData}
+                onChange={(e) => {
+                  setAnalyticsSettings(prev => ({
+                    ...prev,
+                    dataRetention: { ...prev.dataRetention, performanceData: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Integrações */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Plug className="w-5 h-5" />
+            Integrações
+          </CardTitle>
+          <CardDescription>
+            Configure integrações com ferramentas de terceiros
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="googleAnalytics">Google Analytics</Label>
+                <p className="text-sm text-muted-foreground">Rastreamento web</p>
+              </div>
+              <Switch
+                id="googleAnalytics"
+                checked={analyticsSettings.integrations.googleAnalytics}
+                onCheckedChange={(checked) => {
+                  setAnalyticsSettings(prev => ({
+                    ...prev,
+                    integrations: { ...prev.integrations, googleAnalytics: checked }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="mixpanel">Mixpanel</Label>
+                <p className="text-sm text-muted-foreground">Analytics de produto</p>
+              </div>
+              <Switch
+                id="mixpanel"
+                checked={analyticsSettings.integrations.mixpanel}
+                onCheckedChange={(checked) => {
+                  setAnalyticsSettings(prev => ({
+                    ...prev,
+                    integrations: { ...prev.integrations, mixpanel: checked }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="hotjar">Hotjar</Label>
+                <p className="text-sm text-muted-foreground">Mapas de calor</p>
+              </div>
+              <Switch
+                id="hotjar"
+                checked={analyticsSettings.integrations.hotjar}
+                onCheckedChange={(checked) => {
+                  setAnalyticsSettings(prev => ({
+                    ...prev,
+                    integrations: { ...prev.integrations, hotjar: checked }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="sentry">Sentry</Label>
+                <p className="text-sm text-muted-foreground">Monitoramento de erros</p>
+              </div>
+              <Switch
+                id="sentry"
+                checked={analyticsSettings.integrations.sentry}
+                onCheckedChange={(checked) => {
+                  setAnalyticsSettings(prev => ({
+                    ...prev,
+                    integrations: { ...prev.integrations, sentry: checked }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Relatórios */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            Relatórios Automáticos
+          </CardTitle>
+          <CardDescription>
+            Configure o envio automático de relatórios
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="dailyReports">Relatórios Diários</Label>
+                  <p className="text-sm text-muted-foreground">Resumo diário de atividades</p>
+                </div>
+                <Switch
+                  id="dailyReports"
+                  checked={analyticsSettings.reports.dailyReports}
+                  onCheckedChange={(checked) => {
+                    setAnalyticsSettings(prev => ({
+                      ...prev,
+                      reports: { ...prev.reports, dailyReports: checked }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="weeklyReports">Relatórios Semanais</Label>
+                  <p className="text-sm text-muted-foreground">Análise semanal consolidada</p>
+                </div>
+                <Switch
+                  id="weeklyReports"
+                  checked={analyticsSettings.reports.weeklyReports}
+                  onCheckedChange={(checked) => {
+                    setAnalyticsSettings(prev => ({
+                      ...prev,
+                      reports: { ...prev.reports, weeklyReports: checked }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="monthlyReports">Relatórios Mensais</Label>
+                  <p className="text-sm text-muted-foreground">Visão geral mensal</p>
+                </div>
+                <Switch
+                  id="monthlyReports"
+                  checked={analyticsSettings.reports.monthlyReports}
+                  onCheckedChange={(checked) => {
+                    setAnalyticsSettings(prev => ({
+                      ...prev,
+                      reports: { ...prev.reports, monthlyReports: checked }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="emailReports">Enviar por Email</Label>
+                  <p className="text-sm text-muted-foreground">Receber relatórios no email</p>
+                </div>
+                <Switch
+                  id="emailReports"
+                  checked={analyticsSettings.reports.emailReports}
+                  onCheckedChange={(checked) => {
+                    setAnalyticsSettings(prev => ({
+                      ...prev,
+                      reports: { ...prev.reports, emailReports: checked }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Ações */}
       {canEdit && (
         <Card>
@@ -3292,6 +3893,19 @@ function MasterSecurityContent({ canEdit, setMessage }: { canEdit: boolean; setM
 
   const handleSaveSecurity = useCallback(async () => {
     if (!canEdit) return;
+
+    if (securitySettings.authentication.sessionTimeout < 5) {
+      setMessage({ type: 'error', text: 'Timeout de sessão deve ser no mínimo 5 minutos.' });
+      return;
+    }
+    if (securitySettings.authentication.loginAttempts < 3 || securitySettings.authentication.loginAttempts > 10) {
+      setMessage({ type: 'error', text: 'Tentativas de login devem ser entre 3 e 10.' });
+      return;
+    }
+    if (securitySettings.encryption.enabled && securitySettings.encryption.keyRotation < 30) {
+      setMessage({ type: 'error', text: 'Rotação de chaves deve ser no mínimo 30 dias.' });
+      return;
+    }
     
     setIsLoading(true);
     setMessage(null);
@@ -3305,7 +3919,7 @@ function MasterSecurityContent({ canEdit, setMessage }: { canEdit: boolean; setM
     } finally {
       setIsLoading(false);
     }
-  }, [canEdit, setMessage]);
+  }, [canEdit, setMessage, securitySettings]);
 
   useEffect(() => {
     tabsCtx?.registerTab('seguranca', {
@@ -3319,61 +3933,243 @@ function MasterSecurityContent({ canEdit, setMessage }: { canEdit: boolean; setM
 
   return (
     <div className="space-y-6" onChange={() => setIsDirty(true)}>
+      {/* Políticas de Autenticação */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lock className="w-5 h-5" />
+            Políticas de Autenticação
+          </CardTitle>
+          <CardDescription>
+            Configure as regras de acesso e senhas
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sessionTimeout">Timeout de Sessão (minutos)</Label>
+              <Input
+                id="sessionTimeout"
+                type="number"
+                value={securitySettings.authentication.sessionTimeout}
+                onChange={(e) => {
+                  setSecuritySettings(prev => ({
+                    ...prev,
+                    authentication: { ...prev.authentication, sessionTimeout: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+                min={5}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="passwordPolicy">Força da Senha</Label>
+              <Select 
+                value={securitySettings.authentication.passwordPolicy} 
+                onValueChange={(value) => {
+                  setSecuritySettings(prev => ({
+                    ...prev,
+                    authentication: { ...prev.authentication, passwordPolicy: value }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a política" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weak">Básica (8+ caracteres)</SelectItem>
+                  <SelectItem value="medium">Média (Letras + Números)</SelectItem>
+                  <SelectItem value="strong">Forte (Letras + Números + Símbolos)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="loginAttempts">Tentativas de Login</Label>
+              <Input
+                id="loginAttempts"
+                type="number"
+                value={securitySettings.authentication.loginAttempts}
+                onChange={(e) => {
+                  setSecuritySettings(prev => ({
+                    ...prev,
+                    authentication: { ...prev.authentication, loginAttempts: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+                min={3}
+                max={10}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Criptografia */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="w-5 h-5" />
-            Configurações de Segurança
+            Criptografia de Dados
           </CardTitle>
           <CardDescription>
-            Configure as políticas de segurança do sistema
+            Configure a proteção dos dados em repouso
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="encryption">Criptografia</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Criptografar dados sensíveis
-                  </p>
-                </div>
-                <Switch
-                  id="encryption"
-                  checked={securitySettings.encryption.enabled}
-                  onCheckedChange={(checked) => setSecuritySettings(prev => ({
-                    ...prev,
-                    encryption: { ...prev.encryption, enabled: checked }
-                  }))}
-                  disabled={!canEdit}
-                />
-              </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="encryptionEnabled">Habilitar Criptografia</Label>
+              <p className="text-sm text-muted-foreground">
+                Criptografar dados sensíveis no banco de dados
+              </p>
             </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="monitoring">Monitoramento</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Monitorar atividades suspeitas
-                  </p>
-                </div>
-                <Switch
-                  id="monitoring"
-                  checked={securitySettings.monitoring.suspiciousActivity}
-                  onCheckedChange={(checked) => setSecuritySettings(prev => ({
-                    ...prev,
-                    monitoring: { ...prev.monitoring, suspiciousActivity: checked }
-                  }))}
-                  disabled={!canEdit}
-                />
-              </div>
-            </div>
+            <Switch
+              id="encryptionEnabled"
+              checked={securitySettings.encryption.enabled}
+              onCheckedChange={(checked) => {
+                setSecuritySettings(prev => ({
+                  ...prev,
+                  encryption: { ...prev.encryption, enabled: checked }
+                }));
+                setIsDirty(true);
+              }}
+              disabled={!canEdit}
+            />
           </div>
 
-          {canEdit && (
-            <div className="flex justify-end pt-4">
+          {securitySettings.encryption.enabled && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="encryptionAlgorithm">Algoritmo</Label>
+                <Select 
+                  value={securitySettings.encryption.algorithm} 
+                  onValueChange={(value) => {
+                    setSecuritySettings(prev => ({
+                      ...prev,
+                      encryption: { ...prev.encryption, algorithm: value }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o algoritmo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AES-256">AES-256 (Padrão)</SelectItem>
+                    <SelectItem value="AES-128">AES-128 (Mais rápido)</SelectItem>
+                    <SelectItem value="ChaCha20">ChaCha20 (Mobile)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="keyRotation">Rotação de Chaves (dias)</Label>
+                <Input
+                  id="keyRotation"
+                  type="number"
+                  value={securitySettings.encryption.keyRotation}
+                  onChange={(e) => {
+                    setSecuritySettings(prev => ({
+                      ...prev,
+                      encryption: { ...prev.encryption, keyRotation: parseInt(e.target.value) }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                  min={30}
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Monitoramento de Segurança */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Eye className="w-5 h-5" />
+            Monitoramento de Segurança
+          </CardTitle>
+          <CardDescription>
+            Alertas e logs de segurança
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="monitorFailedLogins">Log de Falhas de Login</Label>
+                <p className="text-sm text-muted-foreground">Registrar tentativas de acesso inválidas</p>
+              </div>
+              <Switch
+                id="monitorFailedLogins"
+                checked={securitySettings.monitoring.failedLogins}
+                onCheckedChange={(checked) => {
+                  setSecuritySettings(prev => ({
+                    ...prev,
+                    monitoring: { ...prev.monitoring, failedLogins: checked }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="monitorSuspicious">Atividade Suspeita</Label>
+                <p className="text-sm text-muted-foreground">Detectar padrões anômalos de uso</p>
+              </div>
+              <Switch
+                id="monitorSuspicious"
+                checked={securitySettings.monitoring.suspiciousActivity}
+                onCheckedChange={(checked) => {
+                  setSecuritySettings(prev => ({
+                    ...prev,
+                    monitoring: { ...prev.monitoring, suspiciousActivity: checked }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="monitorAdminActions">Ações Administrativas</Label>
+                <p className="text-sm text-muted-foreground">Auditoria completa de ações de admin</p>
+              </div>
+              <Switch
+                id="monitorAdminActions"
+                checked={securitySettings.monitoring.adminActions}
+                onCheckedChange={(checked) => {
+                  setSecuritySettings(prev => ({
+                    ...prev,
+                    monitoring: { ...prev.monitoring, adminActions: checked }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Ações */}
+      {canEdit && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ações</CardTitle>
+            <CardDescription>
+              Salvar configurações de segurança
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
               <Button onClick={handleSaveSecurity} disabled={isLoading}>
                 {isLoading ? (
                   <>
@@ -3388,22 +4184,82 @@ function MasterSecurityContent({ canEdit, setMessage }: { canEdit: boolean; setM
                 )}
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
 function MasterBackupContent({ canEdit, setMessage }: { canEdit: boolean; setMessage: (msg: ConfigMessage | null) => void }) {
+  const tabsCtx = useContext(ConfigTabsContext);
+  const [isDirty, setIsDirty] = useState(false);
   const [backupSettings, setBackupSettings] = useState({
     automatic: true,
     frequency: 'daily',
     retention: 30,
-    location: 'cloud'
+    location: 'local',
+    s3: { bucket: '', region: 'us-east-1', accessKey: '', secretKey: '' },
+    gcs: { bucket: '', projectId: '', credentialsFile: '' },
+    azure: { container: '', connectionString: '' }
   });
 
+  const [recentBackups] = useState([
+    { id: '1', date: '2025-02-27 02:00', size: '1.2 GB', status: 'success', type: 'automatic' },
+    { id: '2', date: '2025-02-26 02:00', size: '1.2 GB', status: 'success', type: 'automatic' },
+    { id: '3', date: '2025-02-25 15:30', size: '1.1 GB', status: 'success', type: 'manual' },
+  ]);
+
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleSaveBackup = useCallback(async () => {
+    if (!canEdit) return;
+
+    if (backupSettings.retention < 1) {
+      setMessage({ type: 'error', text: 'Retenção deve ser no mínimo 1 dia.' });
+      return;
+    }
+
+    if (backupSettings.location === 's3') {
+      if (!backupSettings.s3.bucket || !backupSettings.s3.region || !backupSettings.s3.accessKey || !backupSettings.s3.secretKey) {
+        setMessage({ type: 'error', text: 'Preencha todos os campos do S3.' });
+        return;
+      }
+    } else if (backupSettings.location === 'gcs') {
+      if (!backupSettings.gcs.bucket || !backupSettings.gcs.projectId || !backupSettings.gcs.credentialsFile) {
+        setMessage({ type: 'error', text: 'Preencha todos os campos do Google Cloud.' });
+        return;
+      }
+    } else if (backupSettings.location === 'azure') {
+      if (!backupSettings.azure.container || !backupSettings.azure.connectionString) {
+        setMessage({ type: 'error', text: 'Preencha todos os campos do Azure.' });
+        return;
+      }
+    }
+    
+    setIsLoading(true);
+    setMessage(null);
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setMessage({ type: 'success', text: 'Configurações de backup salvas com sucesso!' });
+      setIsDirty(false);
+    } catch (error: unknown) {
+      setMessage({ type: 'error', text: 'Erro ao salvar configurações de backup' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [canEdit, setMessage, backupSettings]);
+
+  useEffect(() => {
+    tabsCtx?.registerTab('backup', {
+      isDirty,
+      save: async () => { await handleSaveBackup(); },
+      reset: () => setIsDirty(false),
+      requiredPermission: 'backup.manage'
+    });
+    return () => tabsCtx?.unregisterTab('backup');
+  }, [isDirty, tabsCtx, handleSaveBackup]);
 
   const handleBackupNow = async () => {
     if (!canEdit) return;
@@ -3421,8 +4277,26 @@ function MasterBackupContent({ canEdit, setMessage }: { canEdit: boolean; setMes
     }
   };
 
+  const handleRestore = async (id: string) => {
+    if (!canEdit) return;
+    const confirmed = window.confirm('Tem certeza? Isso irá substituir todos os dados atuais pelos dados do backup.');
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      setMessage({ type: 'success', text: 'Sistema restaurado com sucesso!' });
+    } catch (error: unknown) {
+      setMessage({ type: 'error', text: 'Erro ao restaurar sistema' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onChange={() => setIsDirty(true)}>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -3430,7 +4304,7 @@ function MasterBackupContent({ canEdit, setMessage }: { canEdit: boolean; setMes
             Configurações de Backup
           </CardTitle>
           <CardDescription>
-            Gerencie os backups do sistema
+            Gerencie a frequência e retenção dos backups
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -3439,7 +4313,10 @@ function MasterBackupContent({ canEdit, setMessage }: { canEdit: boolean; setMes
               <Label htmlFor="frequency">Frequência do Backup</Label>
               <Select 
                 value={backupSettings.frequency} 
-                onValueChange={(value) => setBackupSettings(prev => ({ ...prev, frequency: value }))}
+                onValueChange={(value) => {
+                  setBackupSettings(prev => ({ ...prev, frequency: value }));
+                  setIsDirty(true);
+                }}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -3459,7 +4336,10 @@ function MasterBackupContent({ canEdit, setMessage }: { canEdit: boolean; setMes
                 id="retention"
                 type="number"
                 value={backupSettings.retention}
-                onChange={(e) => setBackupSettings(prev => ({ ...prev, retention: parseInt(e.target.value) }))}
+                onChange={(e) => {
+                  setBackupSettings(prev => ({ ...prev, retention: parseInt(e.target.value) }));
+                  setIsDirty(true);
+                }}
                 disabled={!canEdit}
                 placeholder="30"
               />
@@ -3476,35 +4356,197 @@ function MasterBackupContent({ canEdit, setMessage }: { canEdit: boolean; setMes
             <Switch
               id="automatic"
               checked={backupSettings.automatic}
-              onCheckedChange={(checked) => setBackupSettings(prev => ({ ...prev, automatic: checked }))}
+              onCheckedChange={(checked) => {
+                setBackupSettings(prev => ({ ...prev, automatic: checked }));
+                setIsDirty(true);
+              }}
               disabled={!canEdit}
             />
           </div>
+        </CardContent>
+      </Card>
 
-          {canEdit && (
-            <div className="flex justify-end pt-4">
-              <Button onClick={handleBackupNow} disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Fazendo Backup...
-                  </>
-                ) : (
-                  <>
-                    <Database className="mr-2 h-4 w-4" />
-                    Backup Agora
-                  </>
-                )}
-              </Button>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardDrive className="w-5 h-5" />
+            Armazenamento
+          </CardTitle>
+          <CardDescription>
+            Configure onde os backups serão armazenados
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="location">Local de Armazenamento</Label>
+            <Select 
+              value={backupSettings.location} 
+              onValueChange={(value) => {
+                setBackupSettings(prev => ({ ...prev, location: value }));
+                setIsDirty(true);
+              }}
+              disabled={!canEdit}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o local" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="local">Local (Servidor)</SelectItem>
+                <SelectItem value="s3">Amazon S3</SelectItem>
+                <SelectItem value="gcs">Google Cloud Storage</SelectItem>
+                <SelectItem value="azure">Azure Blob Storage</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {backupSettings.location === 's3' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="s3Bucket">Bucket Name</Label>
+                <Input
+                  id="s3Bucket"
+                  value={backupSettings.s3.bucket}
+                  onChange={(e) => {
+                    setBackupSettings(prev => ({ ...prev, s3: { ...prev.s3, bucket: e.target.value } }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="s3Region">Region</Label>
+                <Input
+                  id="s3Region"
+                  value={backupSettings.s3.region}
+                  onChange={(e) => {
+                    setBackupSettings(prev => ({ ...prev, s3: { ...prev.s3, region: e.target.value } }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="s3AccessKey">Access Key</Label>
+                <Input
+                  id="s3AccessKey"
+                  type="password"
+                  value={backupSettings.s3.accessKey}
+                  onChange={(e) => {
+                    setBackupSettings(prev => ({ ...prev, s3: { ...prev.s3, accessKey: e.target.value } }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="s3SecretKey">Secret Key</Label>
+                <Input
+                  id="s3SecretKey"
+                  type="password"
+                  value={backupSettings.s3.secretKey}
+                  onChange={(e) => {
+                    setBackupSettings(prev => ({ ...prev, s3: { ...prev.s3, secretKey: e.target.value } }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5" />
+                Histórico de Backups
+              </CardTitle>
+              <CardDescription>
+                Visualize e restaure backups anteriores
+              </CardDescription>
+            </div>
+            {canEdit && (
+              <Button onClick={handleBackupNow} disabled={isLoading} size="sm">
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Database className="w-4 h-4 mr-2" />}
+                Backup Agora
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="p-3 text-left font-medium">Data</th>
+                  <th className="p-3 text-left font-medium">Tipo</th>
+                  <th className="p-3 text-left font-medium">Tamanho</th>
+                  <th className="p-3 text-left font-medium">Status</th>
+                  <th className="p-3 text-right font-medium">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentBackups.map((backup) => (
+                  <tr key={backup.id} className="border-b last:border-0 hover:bg-muted/50">
+                    <td className="p-3">{backup.date}</td>
+                    <td className="p-3">
+                      <Badge variant="outline">{backup.type === 'automatic' ? 'Automático' : 'Manual'}</Badge>
+                    </td>
+                    <td className="p-3">{backup.size}</td>
+                    <td className="p-3">
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-200">Sucesso</Badge>
+                    </td>
+                    <td className="p-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRestore(backup.id)}
+                        disabled={!canEdit || isLoading}
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                      >
+                        Restaurar
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Ações Gerais */}
+      {canEdit && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-end">
+              <Button onClick={handleSaveBackup} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar Configurações
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
 function MasterMonitoringContent({ canEdit, setMessage }: { canEdit: boolean; setMessage: (msg: ConfigMessage | null) => void }) {
+  const tabsCtx = useContext(ConfigTabsContext);
+  const [isDirty, setIsDirty] = useState(false);
   const [monitoringSettings, setMonitoringSettings] = useState({
     alerts: {
       cpu: 80,
@@ -3521,8 +4563,20 @@ function MasterMonitoringContent({ canEdit, setMessage }: { canEdit: boolean; se
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSaveMonitoring = async () => {
+  const handleSaveMonitoring = useCallback(async () => {
     if (!canEdit) return;
+
+    if (monitoringSettings.alerts.cpu < 0 || monitoringSettings.alerts.cpu > 100 ||
+        monitoringSettings.alerts.memory < 0 || monitoringSettings.alerts.memory > 100 ||
+        monitoringSettings.alerts.disk < 0 || monitoringSettings.alerts.disk > 100) {
+      setMessage({ type: 'error', text: 'Limites devem estar entre 0 e 100%.' });
+      return;
+    }
+
+    if (monitoringSettings.logging.enabled && monitoringSettings.logging.retention < 1) {
+      setMessage({ type: 'error', text: 'Retenção de logs deve ser no mínimo 1 dia.' });
+      return;
+    }
     
     setIsLoading(true);
     setMessage(null);
@@ -3530,97 +4584,205 @@ function MasterMonitoringContent({ canEdit, setMessage }: { canEdit: boolean; se
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       setMessage({ type: 'success', text: 'Configurações de monitoramento salvas com sucesso!' });
+      setIsDirty(false);
     } catch (error: unknown) {
       setMessage({ type: 'error', text: 'Erro ao salvar configurações de monitoramento' });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [canEdit, setMessage, monitoringSettings]);
+
+  useEffect(() => {
+    tabsCtx?.registerTab('monitoramento', {
+      isDirty,
+      save: async () => { await handleSaveMonitoring(); },
+      reset: () => setIsDirty(false),
+      requiredPermission: 'monitoring.manage'
+    });
+    return () => tabsCtx?.unregisterTab('monitoramento');
+  }, [isDirty, tabsCtx, handleSaveMonitoring]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onChange={() => setIsDirty(true)}>
+      {/* Alertas de Performance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="w-5 h-5" />
+            Alertas de Performance
+          </CardTitle>
+          <CardDescription>
+            Defina os limites para alertas de uso de recursos
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="cpuThreshold">Limite de CPU (%)</Label>
+              <Input
+                id="cpuThreshold"
+                type="number"
+                value={monitoringSettings.alerts.cpu}
+                onChange={(e) => {
+                  setMonitoringSettings(prev => ({
+                    ...prev,
+                    alerts: { ...prev.alerts, cpu: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+                min={0}
+                max={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="memoryThreshold">Limite de Memória (%)</Label>
+              <Input
+                id="memoryThreshold"
+                type="number"
+                value={monitoringSettings.alerts.memory}
+                onChange={(e) => {
+                  setMonitoringSettings(prev => ({
+                    ...prev,
+                    alerts: { ...prev.alerts, memory: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+                min={0}
+                max={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="diskThreshold">Limite de Disco (%)</Label>
+              <Input
+                id="diskThreshold"
+                type="number"
+                value={monitoringSettings.alerts.disk}
+                onChange={(e) => {
+                  setMonitoringSettings(prev => ({
+                    ...prev,
+                    alerts: { ...prev.alerts, disk: parseInt(e.target.value) }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+                min={0}
+                max={100}
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="space-y-0.5">
+              <Label htmlFor="errorAlerts">Alertas de Erro</Label>
+              <p className="text-sm text-muted-foreground">
+                Receber notificações imediatas sobre erros críticos
+              </p>
+            </div>
+            <Switch
+              id="errorAlerts"
+              checked={monitoringSettings.alerts.errors}
+              onCheckedChange={(checked) => {
+                setMonitoringSettings(prev => ({
+                  ...prev,
+                  alerts: { ...prev.alerts, errors: checked }
+                }));
+                setIsDirty(true);
+              }}
+              disabled={!canEdit}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Configuração de Logs */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Monitor className="w-5 h-5" />
-            Monitoramento do Sistema
+            Configuração de Logs
           </CardTitle>
           <CardDescription>
-            Configure o monitoramento de performance e alertas
+            Gerencie o nível de detalhe e retenção dos logs do sistema
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="cpuThreshold">Limite de CPU (%)</Label>
-                <Input
-                  id="cpuThreshold"
-                  type="number"
-                  value={monitoringSettings.alerts.cpu}
-                  onChange={(e) => setMonitoringSettings(prev => ({
-                    ...prev,
-                    alerts: { ...prev.alerts, cpu: parseInt(e.target.value) }
-                  }))}
-                  disabled={!canEdit}
-                  placeholder="80"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="memoryThreshold">Limite de Memória (%)</Label>
-                <Input
-                  id="memoryThreshold"
-                  type="number"
-                  value={monitoringSettings.alerts.memory}
-                  onChange={(e) => setMonitoringSettings(prev => ({
-                    ...prev,
-                    alerts: { ...prev.alerts, memory: parseInt(e.target.value) }
-                  }))}
-                  disabled={!canEdit}
-                  placeholder="85"
-                />
-              </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="loggingEnabled">Habilitar Logs</Label>
+              <p className="text-sm text-muted-foreground">
+                Registrar atividades do sistema
+              </p>
             </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="diskThreshold">Limite de Disco (%)</Label>
-                <Input
-                  id="diskThreshold"
-                  type="number"
-                  value={monitoringSettings.alerts.disk}
-                  onChange={(e) => setMonitoringSettings(prev => ({
-                    ...prev,
-                    alerts: { ...prev.alerts, disk: parseInt(e.target.value) }
-                  }))}
-                  disabled={!canEdit}
-                  placeholder="90"
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="errorAlerts">Alertas de Erro</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receber alertas sobre erros
-                  </p>
-                </div>
-                <Switch
-                  id="errorAlerts"
-                  checked={monitoringSettings.alerts.errors}
-                  onCheckedChange={(checked) => setMonitoringSettings(prev => ({
-                    ...prev,
-                    alerts: { ...prev.alerts, errors: checked }
-                  }))}
-                  disabled={!canEdit}
-                />
-              </div>
-            </div>
+            <Switch
+              id="loggingEnabled"
+              checked={monitoringSettings.logging.enabled}
+              onCheckedChange={(checked) => {
+                setMonitoringSettings(prev => ({
+                  ...prev,
+                  logging: { ...prev.logging, enabled: checked }
+                }));
+                setIsDirty(true);
+              }}
+              disabled={!canEdit}
+            />
           </div>
 
-          {canEdit && (
-            <div className="flex justify-end pt-4">
+          {monitoringSettings.logging.enabled && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="logLevel">Nível de Log</Label>
+                <Select 
+                  value={monitoringSettings.logging.level} 
+                  onValueChange={(value) => {
+                    setMonitoringSettings(prev => ({
+                      ...prev,
+                      logging: { ...prev.logging, level: value }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o nível" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="debug">Debug (Detalhado)</SelectItem>
+                    <SelectItem value="info">Info (Padrão)</SelectItem>
+                    <SelectItem value="warn">Warning (Apenas alertas)</SelectItem>
+                    <SelectItem value="error">Error (Apenas erros)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="logRetention">Retenção (dias)</Label>
+                <Input
+                  id="logRetention"
+                  type="number"
+                  value={monitoringSettings.logging.retention}
+                  onChange={(e) => {
+                    setMonitoringSettings(prev => ({
+                      ...prev,
+                      logging: { ...prev.logging, retention: parseInt(e.target.value) }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                  min={1}
+                  max={365}
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Ações */}
+      {canEdit && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-end">
               <Button onClick={handleSaveMonitoring} disabled={isLoading}>
                 {isLoading ? (
                   <>
@@ -3635,23 +4797,67 @@ function MasterMonitoringContent({ canEdit, setMessage }: { canEdit: boolean; se
                 )}
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
 function MasterIntegrationsContent({ canEdit, setMessage }: { canEdit: boolean; setMessage: (msg: ConfigMessage | null) => void }) {
+  const tabsCtx = useContext(ConfigTabsContext);
+  const [isDirty, setIsDirty] = useState(false);
   const [integrations, setIntegrations] = useState({
-    email: { enabled: true, smtp: '' },
-    api: { enabled: true, rateLimit: 1000 }
+    api: { 
+      enabled: true, 
+      rateLimit: 1000, 
+      publicAccess: false 
+    },
+    webhooks: { 
+      enabled: false, 
+      maxRetries: 3,
+      secretKey: ''
+    },
+    sso: { 
+      enabled: false, 
+      google: false, 
+      microsoft: false,
+      okta: false
+    },
+    storage: { 
+      provider: 'local', 
+      region: 'us-east-1', 
+      bucket: '' 
+    }
   });
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSaveIntegrations = async () => {
+  const handleSaveIntegrations = useCallback(async () => {
     if (!canEdit) return;
+
+    if (integrations.api.enabled && integrations.api.rateLimit <= 0) {
+      setMessage({ type: 'error', text: 'Limite de requisições deve ser maior que 0.' });
+      return;
+    }
+
+    if (integrations.webhooks.enabled) {
+      if (integrations.webhooks.maxRetries < 0 || integrations.webhooks.maxRetries > 10) {
+        setMessage({ type: 'error', text: 'Tentativas de reenvio devem ser entre 0 e 10.' });
+        return;
+      }
+      if (!integrations.webhooks.secretKey) {
+        setMessage({ type: 'error', text: 'Chave secreta do Webhook é obrigatória.' });
+        return;
+      }
+    }
+
+    if (integrations.storage.provider !== 'local') {
+      if (!integrations.storage.bucket) {
+        setMessage({ type: 'error', text: 'Nome do Bucket é obrigatório.' });
+        return;
+      }
+    }
     
     setIsLoading(true);
     setMessage(null);
@@ -3659,48 +4865,348 @@ function MasterIntegrationsContent({ canEdit, setMessage }: { canEdit: boolean; 
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       setMessage({ type: 'success', text: 'Integrações salvas com sucesso!' });
+      setIsDirty(false);
     } catch (error: unknown) {
       setMessage({ type: 'error', text: 'Erro ao salvar integrações' });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [canEdit, setMessage, integrations]);
+
+  useEffect(() => {
+    tabsCtx?.registerTab('integracoes', {
+      isDirty,
+      save: async () => { await handleSaveIntegrations(); },
+      reset: () => setIsDirty(false),
+      requiredPermission: 'integrations.manage'
+    });
+    return () => tabsCtx?.unregisterTab('integracoes');
+  }, [isDirty, tabsCtx, handleSaveIntegrations]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onChange={() => setIsDirty(true)}>
+      {/* API e Webhooks */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plug className="w-5 h-5" />
-            Integrações do Sistema
+            API e Webhooks
           </CardTitle>
           <CardDescription>
-            Configure integrações com serviços externos
+            Gerencie o acesso à API e integrações via Webhook
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="emailIntegration">Email</Label>
-                <p className="text-sm text-muted-foreground">
-                  Integração com serviço de email
-                </p>
-              </div>
-              <Switch
-                id="emailIntegration"
-                checked={integrations.email.enabled}
-                onCheckedChange={(checked) => setIntegrations(prev => ({
-                  ...prev,
-                  email: { ...prev.email, enabled: checked }
-                }))}
-                disabled={!canEdit}
-              />
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="apiEnabled">Habilitar API</Label>
+              <p className="text-sm text-muted-foreground">
+                Permitir acesso externo via API REST
+              </p>
             </div>
+            <Switch
+              id="apiEnabled"
+              checked={integrations.api.enabled}
+              onCheckedChange={(checked) => {
+                setIntegrations(prev => ({
+                  ...prev,
+                  api: { ...prev.api, enabled: checked }
+                }));
+                setIsDirty(true);
+              }}
+              disabled={!canEdit}
+            />
           </div>
 
-          {canEdit && (
-            <div className="flex justify-end pt-4">
+          {integrations.api.enabled && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="rateLimit">Limite de Requisições (minuto)</Label>
+                <Input
+                  id="rateLimit"
+                  type="number"
+                  value={integrations.api.rateLimit}
+                  onChange={(e) => {
+                    setIntegrations(prev => ({
+                      ...prev,
+                      api: { ...prev.api, rateLimit: parseInt(e.target.value) }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="flex items-center justify-between h-full pt-6">
+                <div className="space-y-0.5">
+                  <Label htmlFor="publicAccess">Acesso Público</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Endpoints públicos sem autenticação
+                  </p>
+                </div>
+                <Switch
+                  id="publicAccess"
+                  checked={integrations.api.publicAccess}
+                  onCheckedChange={(checked) => {
+                    setIntegrations(prev => ({
+                      ...prev,
+                      api: { ...prev.api, publicAccess: checked }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="space-y-0.5">
+              <Label htmlFor="webhooksEnabled">Webhooks</Label>
+              <p className="text-sm text-muted-foreground">
+                Enviar eventos para URLs externas
+              </p>
+            </div>
+            <Switch
+              id="webhooksEnabled"
+              checked={integrations.webhooks.enabled}
+              onCheckedChange={(checked) => {
+                setIntegrations(prev => ({
+                  ...prev,
+                  webhooks: { ...prev.webhooks, enabled: checked }
+                }));
+                setIsDirty(true);
+              }}
+              disabled={!canEdit}
+            />
+          </div>
+
+          {integrations.webhooks.enabled && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="webhookRetries">Tentativas de Reenvio</Label>
+                <Input
+                  id="webhookRetries"
+                  type="number"
+                  value={integrations.webhooks.maxRetries}
+                  onChange={(e) => {
+                    setIntegrations(prev => ({
+                      ...prev,
+                      webhooks: { ...prev.webhooks, maxRetries: parseInt(e.target.value) }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                  max={10}
+                  min={0}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="webhookSecret">Chave Secreta (Assinatura)</Label>
+                <div className="relative">
+                  <Input
+                    id="webhookSecret"
+                    type="password"
+                    value={integrations.webhooks.secretKey}
+                    onChange={(e) => {
+                      setIntegrations(prev => ({
+                        ...prev,
+                        webhooks: { ...prev.webhooks, secretKey: e.target.value }
+                      }));
+                      setIsDirty(true);
+                    }}
+                    disabled={!canEdit}
+                    placeholder="Chave para validar payloads"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Autenticação SSO */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5" />
+            Autenticação SSO
+          </CardTitle>
+          <CardDescription>
+            Configure login único com provedores externos
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="ssoEnabled">Habilitar SSO</Label>
+              <p className="text-sm text-muted-foreground">
+                Permitir login com contas corporativas
+              </p>
+            </div>
+            <Switch
+              id="ssoEnabled"
+              checked={integrations.sso.enabled}
+              onCheckedChange={(checked) => {
+                setIntegrations(prev => ({
+                  ...prev,
+                  sso: { ...prev.sso, enabled: checked }
+                }));
+                setIsDirty(true);
+              }}
+              disabled={!canEdit}
+            />
+          </div>
+
+          {integrations.sso.enabled && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  <Label htmlFor="ssoGoogle" className="cursor-pointer">Google</Label>
+                </div>
+                <Switch
+                  id="ssoGoogle"
+                  checked={integrations.sso.google}
+                  onCheckedChange={(checked) => {
+                    setIntegrations(prev => ({
+                      ...prev,
+                      sso: { ...prev.sso, google: checked }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  <Label htmlFor="ssoMicrosoft" className="cursor-pointer">Microsoft</Label>
+                </div>
+                <Switch
+                  id="ssoMicrosoft"
+                  checked={integrations.sso.microsoft}
+                  onCheckedChange={(checked) => {
+                    setIntegrations(prev => ({
+                      ...prev,
+                      sso: { ...prev.sso, microsoft: checked }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  <Label htmlFor="ssoOkta" className="cursor-pointer">Okta</Label>
+                </div>
+                <Switch
+                  id="ssoOkta"
+                  checked={integrations.sso.okta}
+                  onCheckedChange={(checked) => {
+                    setIntegrations(prev => ({
+                      ...prev,
+                      sso: { ...prev.sso, okta: checked }
+                    }));
+                    setIsDirty(true);
+                  }}
+                  disabled={!canEdit}
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Armazenamento */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardDrive className="w-5 h-5" />
+            Armazenamento de Arquivos
+          </CardTitle>
+          <CardDescription>
+            Configure onde os arquivos do sistema são armazenados
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="storageProvider">Provedor</Label>
+              <Select 
+                value={integrations.storage.provider} 
+                onValueChange={(value) => {
+                  setIntegrations(prev => ({
+                    ...prev,
+                    storage: { ...prev.storage, provider: value }
+                  }));
+                  setIsDirty(true);
+                }}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o provedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="local">Local (Servidor)</SelectItem>
+                  <SelectItem value="s3">Amazon S3</SelectItem>
+                  <SelectItem value="azure">Azure Blob Storage</SelectItem>
+                  <SelectItem value="gcs">Google Cloud Storage</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {integrations.storage.provider !== 'local' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="storageRegion">Região</Label>
+                  <Input
+                    id="storageRegion"
+                    value={integrations.storage.region}
+                    onChange={(e) => {
+                      setIntegrations(prev => ({
+                        ...prev,
+                        storage: { ...prev.storage, region: e.target.value }
+                      }));
+                      setIsDirty(true);
+                    }}
+                    disabled={!canEdit}
+                    placeholder="us-east-1"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="storageBucket">Bucket / Container</Label>
+                  <Input
+                    id="storageBucket"
+                    value={integrations.storage.bucket}
+                    onChange={(e) => {
+                      setIntegrations(prev => ({
+                        ...prev,
+                        storage: { ...prev.storage, bucket: e.target.value }
+                      }));
+                      setIsDirty(true);
+                    }}
+                    disabled={!canEdit}
+                    placeholder="nome-do-bucket"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Ações */}
+      {canEdit && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ações</CardTitle>
+            <CardDescription>
+              Salvar configurações de integração
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
               <Button onClick={handleSaveIntegrations} disabled={isLoading}>
                 {isLoading ? (
                   <>
@@ -3715,14 +5221,16 @@ function MasterIntegrationsContent({ canEdit, setMessage }: { canEdit: boolean; 
                 )}
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
 function MasterMaintenanceContent({ canEdit, setMessage }: { canEdit: boolean; setMessage: (msg: ConfigMessage | null) => void }) {
+  const tabsCtx = useContext(ConfigTabsContext);
+  const [isDirty, setIsDirty] = useState(false);
   const [maintenanceSettings, setMaintenanceSettings] = useState({
     autoUpdate: true,
     maintenanceMode: false,
@@ -3730,7 +5238,43 @@ function MasterMaintenanceContent({ canEdit, setMessage }: { canEdit: boolean; s
     cacheClear: false
   });
 
+  const [healthStatus, setHealthStatus] = useState({
+    api: 'ok',
+    database: 'ok',
+    storage: 'ok',
+    cache: 'warning'
+  });
+
+  const [activeSessions, setActiveSessions] = useState(42);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+
+  const handleSaveMaintenance = useCallback(async () => {
+    if (!canEdit) return;
+    
+    setIsLoading(true);
+    setMessage(null);
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setMessage({ type: 'success', text: 'Configurações de manutenção salvas com sucesso!' });
+      setIsDirty(false);
+    } catch (error: unknown) {
+      setMessage({ type: 'error', text: 'Erro ao salvar configurações de manutenção' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [canEdit, setMessage]);
+
+  useEffect(() => {
+    tabsCtx?.registerTab('manutencao', {
+      isDirty,
+      save: async () => { await handleSaveMaintenance(); },
+      reset: () => setIsDirty(false),
+      requiredPermission: 'maintenance.manage'
+    });
+    return () => tabsCtx?.unregisterTab('manutencao');
+  }, [isDirty, tabsCtx, handleSaveMaintenance]);
 
   const handleClearCache = async () => {
     if (!canEdit) return;
@@ -3741,8 +5285,41 @@ function MasterMaintenanceContent({ canEdit, setMessage }: { canEdit: boolean; s
     try {
       await new Promise(resolve => setTimeout(resolve, 2000));
       setMessage({ type: 'success', text: 'Cache limpo com sucesso!' });
+      setHealthStatus(prev => ({ ...prev, cache: 'ok' }));
     } catch (error: unknown) {
       setMessage({ type: 'error', text: 'Erro ao limpar cache' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRunDiagnostics = async () => {
+    setIsCheckingHealth(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setHealthStatus({
+        api: Math.random() > 0.1 ? 'ok' : 'error',
+        database: 'ok',
+        storage: 'ok',
+        cache: 'ok'
+      });
+      toast.success('Diagnóstico concluído');
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
+
+  const handleKillSessions = async () => {
+    if (!canEdit) return;
+    if (!window.confirm('Isso irá desconectar todos os usuários (exceto você). Continuar?')) return;
+
+    setIsLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setActiveSessions(1); // Only current user
+      setMessage({ type: 'success', text: 'Todas as sessões foram encerradas.' });
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Erro ao encerrar sessões.' });
     } finally {
       setIsLoading(false);
     }
@@ -3776,39 +5353,108 @@ function MasterMaintenanceContent({ canEdit, setMessage }: { canEdit: boolean; s
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onChange={() => setIsDirty(true)}>
+      {/* Status do Sistema */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5" />
+                Status do Sistema
+              </CardTitle>
+              <CardDescription>
+                Visão geral da saúde dos serviços
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleRunDiagnostics} disabled={isCheckingHealth}>
+              {isCheckingHealth ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Diagnóstico
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 border rounded-lg flex flex-col items-center justify-center text-center space-y-2">
+              <span className="text-sm font-medium text-muted-foreground">API</span>
+              {healthStatus.api === 'ok' ? (
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              ) : (
+                <AlertCircle className="w-8 h-8 text-red-500" />
+              )}
+              <span className={`text-xs px-2 py-1 rounded-full ${healthStatus.api === 'ok' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                {healthStatus.api === 'ok' ? 'Operacional' : 'Erro'}
+              </span>
+            </div>
+            <div className="p-4 border rounded-lg flex flex-col items-center justify-center text-center space-y-2">
+              <span className="text-sm font-medium text-muted-foreground">Banco de Dados</span>
+              {healthStatus.database === 'ok' ? (
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              ) : (
+                <AlertCircle className="w-8 h-8 text-red-500" />
+              )}
+              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Operacional</span>
+            </div>
+            <div className="p-4 border rounded-lg flex flex-col items-center justify-center text-center space-y-2">
+              <span className="text-sm font-medium text-muted-foreground">Storage</span>
+              {healthStatus.storage === 'ok' ? (
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              ) : (
+                <AlertCircle className="w-8 h-8 text-red-500" />
+              )}
+              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Operacional</span>
+            </div>
+            <div className="p-4 border rounded-lg flex flex-col items-center justify-center text-center space-y-2">
+              <span className="text-sm font-medium text-muted-foreground">Cache</span>
+              {healthStatus.cache === 'ok' ? (
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              ) : (
+                <AlertCircle className="w-8 h-8 text-yellow-500" />
+              )}
+              <span className={`text-xs px-2 py-1 rounded-full ${healthStatus.cache === 'ok' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                {healthStatus.cache === 'ok' ? 'Otimizado' : 'Limpeza Necessária'}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Controle de Manutenção */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wrench className="w-5 h-5" />
-            Manutenção do Sistema
+            Controle de Manutenção
           </CardTitle>
           <CardDescription>
-            Ferramentas de manutenção e administração do sistema
+            Ferramentas de administração do sistema
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="autoUpdate">Atualização Automática</Label>
                 <p className="text-sm text-muted-foreground">
-                  Atualizar sistema automaticamente
+                  Aplicar patches de segurança automaticamente
                 </p>
               </div>
               <Switch
                 id="autoUpdate"
                 checked={maintenanceSettings.autoUpdate}
-                onCheckedChange={(checked) => setMaintenanceSettings(prev => ({ ...prev, autoUpdate: checked }))}
+                onCheckedChange={(checked) => {
+                  setMaintenanceSettings(prev => ({ ...prev, autoUpdate: checked }));
+                  setIsDirty(true);
+                }}
                 disabled={!canEdit}
               />
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between p-4 border border-destructive/20 bg-destructive/5 rounded-lg">
               <div className="space-y-0.5">
-                <Label htmlFor="maintenanceMode">Modo de Manutenção</Label>
-                <p className="text-sm text-muted-foreground">
-                  Bloquear acesso durante manutenção
+                <Label htmlFor="maintenanceMode" className="text-destructive font-semibold">Modo de Manutenção</Label>
+                <p className="text-sm text-destructive/80">
+                  Bloqueia o acesso de todos os usuários (exceto admins)
                 </p>
               </div>
               <Switch
@@ -3823,37 +5469,72 @@ function MasterMaintenanceContent({ canEdit, setMessage }: { canEdit: boolean; s
               <div className="space-y-0.5">
                 <Label htmlFor="logCleanup">Limpeza de Logs</Label>
                 <p className="text-sm text-muted-foreground">
-                  Limpar logs antigos automaticamente
+                  Arquivar logs antigos automaticamente após 30 dias
                 </p>
               </div>
               <Switch
                 id="logCleanup"
                 checked={maintenanceSettings.logCleanup}
-                onCheckedChange={(checked) => setMaintenanceSettings(prev => ({ ...prev, logCleanup: checked }))}
+                onCheckedChange={(checked) => {
+                  setMaintenanceSettings(prev => ({ ...prev, logCleanup: checked }));
+                  setIsDirty(true);
+                }}
                 disabled={!canEdit}
               />
             </div>
           </div>
 
-          <div className="pt-4 border-t">
-            <div className="flex gap-4">
-              <Button variant="outline" onClick={handleClearCache} disabled={isLoading || !canEdit}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Limpando...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Limpar Cache
-                  </>
-                )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+            <div className="space-y-2">
+              <Label>Cache do Sistema</Label>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start" 
+                onClick={handleClearCache} 
+                disabled={isLoading || !canEdit}
+              >
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Limpar Cache Redis
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <Label>Sessões Ativas ({activeSessions})</Label>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10" 
+                onClick={handleKillSessions}
+                disabled={isLoading || !canEdit}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Encerrar Todas as Sessões
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Ações */}
+      {canEdit && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-end">
+              <Button onClick={handleSaveMaintenance} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar Configurações
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -113,6 +113,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'dashboard.user.view',
     'diagnostico.view',
     // 'diagnostico.create', // Removido por padrão
+    'questionario.view',
     'plano.view',
     'conquista.view',
     'agent.chat.view',

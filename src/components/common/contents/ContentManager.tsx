@@ -291,12 +291,6 @@ const ContentManager = () => {
 
   // Carregar conteúdos e categorias da API
   const fetchContents = useCallback(async () => {
-    if (!isAdmin) {
-      setContents([]);
-      setCategories([]);
-      setLoading(false);
-      return;
-    }
     try {
       setLoading(true);
       // Buscar conteúdos reais do backend
@@ -304,7 +298,10 @@ const ContentManager = () => {
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
         console.error('Erro ao carregar conteúdos:', errorText);
-        toast.error('Não foi possível carregar conteúdos do servidor.');
+        // Não mostrar erro se for apenas vazio ou acesso negado esperado
+        if (response.status !== 403 && response.status !== 404) {
+          toast.error('Não foi possível carregar conteúdos do servidor.');
+        }
         setContents([]);
       } else {
         const contentsData = await response.json();
@@ -394,7 +391,7 @@ const ContentManager = () => {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, []);
 
   useEffect(() => {
     void fetchContents();
@@ -721,7 +718,7 @@ const ContentManager = () => {
         title="Gerenciador de Conteúdos"
         description="Gerencie todo o conteúdo da plataforma"
         icon={BookOpen}
-        actions={[
+        actions={isAdmin ? [
           {
             label: 'Gerenciar Categorias',
             icon: TagIcon,
@@ -733,7 +730,7 @@ const ContentManager = () => {
             icon: PlusIcon,
             onClick: handleCreateConteudo
           }
-        ]}
+        ] : []}
       />
 
       {/* Estatísticas */}
