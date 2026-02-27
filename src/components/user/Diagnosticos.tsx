@@ -239,10 +239,12 @@ const Diagnosticos: React.FC = () => {
                   Inicie um novo diagnóstico para gerar insights sobre o clima da sua empresa.
                 </p>
               </div>
-              <Button onClick={() => setIsDiagnosticModalOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Começar novo diagnóstico
-              </Button>
+              {hasPermission('diagnostico.create') && (
+                <Button onClick={() => setIsDiagnosticModalOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Começar novo diagnóstico
+                </Button>
+              )}
             </div>
           </div>
         ) : (

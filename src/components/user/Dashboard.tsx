@@ -8,6 +8,7 @@ import { BarChart, Target, Trophy, TrendingUp, Users, FileText, Award, Plus, Lay
 import AchievementBadge from '@/components/common/AchievementBadge';
 import PageHeader from '@/components/common/PageHeader';
 import { useAuthStore } from '@/stores/authStore';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import ModalLayout from '@/components/common/ModalLayout';
@@ -89,6 +90,7 @@ interface RawDiagnostic {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { hasPermission } = usePermissions();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDiagnosticModalOpen, setIsDiagnosticModalOpen] = useState(false);
@@ -196,14 +198,14 @@ const Dashboard = () => {
           { label: `Nível ${stats.level || 1}`, icon: Trophy },
           { label: `${stats.ranking}% de progresso`, icon: TrendingUp }
         ]}
-        actions={[
-          { 
+        actions={
+          hasPermission('diagnostico.create') ? [{ 
             label: "Novo Diagnóstico", 
             icon: Plus, 
             onClick: handleNewDiagnostic,
             variant: 'primary' as const
-          }
-        ]}
+          }] : []
+        }
       />
 
       <div className="container mx-auto px-4">
@@ -294,10 +296,12 @@ const Dashboard = () => {
                   ))
                 )}
                 
-                <Button variant="outline" className="w-full" size="lg" onClick={handleNewDiagnostic}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Fazer Novo Diagnóstico
-                </Button>
+                {hasPermission('diagnostico.create') && (
+                  <Button variant="outline" className="w-full" size="lg" onClick={handleNewDiagnostic}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Fazer Novo Diagnóstico
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
@@ -363,10 +367,12 @@ const Dashboard = () => {
                 <CardTitle>Ações Rápidas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start" size="sm" onClick={handleNewDiagnostic}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Novo Diagnóstico
-                </Button>
+                {hasPermission('diagnostico.create') && (
+                  <Button variant="outline" className="w-full justify-start" size="sm" onClick={handleNewDiagnostic}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Novo Diagnóstico
+                  </Button>
+                )}
                 <Button variant="outline" className="w-full justify-start" size="sm" onClick={() => navigate('/conquistas')}>
                   <Users className="mr-2 h-4 w-4" />
                   Ver Ranking
