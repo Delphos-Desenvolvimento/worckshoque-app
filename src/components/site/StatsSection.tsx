@@ -37,7 +37,7 @@ const Counter: React.FC<CounterProps> = ({ value, prefix = '', suffix = '', clas
 
 const StatsSection: React.FC = () => {
   return (
-    <section className="py-10 md:py-20">
+    <section id="statistics" className="py-10 md:py-20">
       <div className="container mx-auto px-4 text-center">
         <h2 className="text-3xl md:text-4xl font-bold mb-8 md:mb-12 text-foreground">
           Resultados que falam por si

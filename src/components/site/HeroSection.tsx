@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ChevronRight } from 'lucide-react';
 
@@ -48,11 +47,15 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onDiagnosticoClick }) => {
             variant="outline" 
             size="lg" 
             className="w-full sm:w-auto border-white text-gray-900 bg-white hover:bg-white/90 px-6 md:px-8 h-12 md:h-14 text-base md:text-lg" 
-            asChild
+            onClick={(e) => {
+              e.preventDefault();
+              const element = document.getElementById('statistics');
+              if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
           >
-            <Link to="/sobre">
-              Saiba Mais
-            </Link>
+            Saiba Mais
           </Button>
         </div>
       </div>
