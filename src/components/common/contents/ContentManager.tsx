@@ -1041,7 +1041,13 @@ const ContentManager = () => {
                 <Input
                   id="file"
                   type="file"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    if (file && file.size > 500 * 1024 * 1024) {
+                      toast.warning('O arquivo selecionado é maior que 500MB. O upload pode demorar.');
+                    }
+                    setSelectedFile(file);
+                  }}
                   className="cursor-pointer"
                   accept="image/*,application/pdf,video/*"
                 />
