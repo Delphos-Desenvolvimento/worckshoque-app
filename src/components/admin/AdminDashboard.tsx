@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   FileText, 
@@ -58,6 +59,7 @@ interface AdminDashboardStats {
 
 const AdminDashboard = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -154,7 +156,7 @@ const AdminDashboard = () => {
           { 
             label: "Gerenciar Equipe", 
             icon: Users, 
-            onClick: () => console.log('Abrindo gestão de equipe...'),
+            onClick: () => navigate('/gestao-usuarios'),
             variant: 'primary' as const
           }
         ]}
@@ -246,7 +248,11 @@ const AdminDashboard = () => {
                       Últimas atividades da sua equipe
                     </CardDescription>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate('/relatorios')}
+                  >
                     <Download className="mr-2 h-4 w-4" />
                     Relatório
                   </Button>
@@ -352,19 +358,34 @@ const AdminDashboard = () => {
                 <CardTitle>Ações Rápidas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button className="w-full justify-start">
+                <Button 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/gestao-usuarios?openModal=true')}
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Adicionar Colaborador
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/planos-acao')}
+                >
                   <FileText className="mr-2 h-4 w-4" />
                   Criar Plano de Ação
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/relatorios')}
+                >
                   <Download className="mr-2 h-4 w-4" />
                   Gerar Relatório
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/gestao-usuarios')}
+                >
                   <Users className="mr-2 h-4 w-4" />
                   Gestão de Usuários
                 </Button>

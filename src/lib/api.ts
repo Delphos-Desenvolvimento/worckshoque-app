@@ -147,6 +147,20 @@ export const api = {
     apiRequest(endpoint, { ...options, method: 'DELETE' }),
 };
 
+export const getFileUrl = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  
+  const apiBaseUrl = getApiBaseUrl();
+  // Remove /api from the end if present, as static files are served from root
+  const baseUrl = apiBaseUrl.replace(/\/api\/?$/, '');
+  
+  // Ensure url starts with / if not present
+  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+  
+  return `${baseUrl}${cleanUrl}`;
+};
+
 // Instância do axios configurada com a URL base centralizada
 // Use esta instância para requisições que precisam de axios (ex: uploads, progress, etc)
 export const axiosInstance: AxiosInstance = axios.create({

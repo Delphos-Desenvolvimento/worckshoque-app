@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { api } from '@/lib/api';
+import { api, axiosInstance, getFileUrl } from '@/lib/api';
 import { toast } from 'sonner';
 
 // Tipos e Interfaces
@@ -48,6 +49,7 @@ interface Content {
     difficulty?: string;
     duration?: number;
     tags?: string[];
+    fileUrl?: string;
   };
 }
 
@@ -64,6 +66,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 
 // Componentes de Diálogo
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // Componentes de Seleção
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectGroup, SelectLabel } from '@/components/ui/select';
@@ -238,6 +241,7 @@ const mockCategories: Category[] = [
 
 const ContentManager = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const isAdmin = user?.role === 'admin' || user?.role === 'master';
   
   // Estados para o gerenciamento de conteúdo
@@ -270,6 +274,8 @@ const ContentManager = () => {
     isFavorite: false,
     metadata: {}
   });
+  
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   
 
@@ -280,6 +286,14 @@ const ContentManager = () => {
     { name: 'heart', icon: HeartIcon },
     { name: 'star', icon: StarIcon },
     { name: 'file-text', icon: FileText },
+  ];
+
+  // Cores predefinidas para categorias
+  const presetColors = [
+    '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', 
+    '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', 
+    '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', 
+    '#ec4899', '#f43f5e', '#64748b', '#71717a', '#000000'
   ];
 
   // Funções de manipulação de categorias
@@ -519,6 +533,7 @@ const ContentManager = () => {
   // Handlers para Conteúdos
   const handleCreateConteudo = () => {
     setIsCreateModalOpen(true);
+    setSelectedFile(null);
     setFormData({
       title: '',
       description: '',
@@ -533,6 +548,7 @@ const ContentManager = () => {
 
   const handleEditConteudo = (conteudo: Content) => {
     setEditingConteudo(conteudo);
+    setSelectedFile(null);
     // Buscar ID da categoria pelo nome
     const categoryId = categories.find(cat => cat.name === conteudo.category)?.id || conteudo.category;
     
@@ -563,6 +579,29 @@ const ContentManager = () => {
     try {
       setLoading(true);
       
+      let fileUrl = formData.metadata?.fileUrl;
+
+      if (selectedFile) {
+        const uploadData = new FormData();
+        uploadData.append('file', selectedFile);
+        
+        try {
+          // 'Content-Type': 'multipart/form-data' deve ser evitado para que o browser defina o boundary corretamente
+          // Mas como temos um default 'application/json' na instância, precisamos sobrescrever
+          const uploadResponse = await axiosInstance.post('/uploads', uploadData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+          fileUrl = uploadResponse.data.url;
+        } catch (error) {
+           console.error('Upload failed', error);
+           toast.error('Erro ao fazer upload do arquivo');
+           setLoading(false);
+           return;
+        }
+      }
+      
       const apiData = {
         title: formData.title,
         description: formData.description,
@@ -573,7 +612,8 @@ const ContentManager = () => {
         is_featured: formData.isFavorite,
         metadata: {
           ...formData.metadata,
-          tags: formData.tags
+          tags: formData.tags,
+          fileUrl
         }
       };
 
@@ -892,7 +932,11 @@ const ContentManager = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="icon">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => navigate(`/conteudos/${content.id}`)}
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
                       {isAdmin && (
@@ -987,6 +1031,26 @@ const ContentManager = () => {
                   <SelectItem value="document">Documento</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="file" className="text-right">
+                Arquivo
+              </Label>
+              <div className="col-span-3 flex flex-col gap-2">
+                <Input
+                  id="file"
+                  type="file"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  className="cursor-pointer"
+                  accept="image/*,application/pdf,video/*"
+                />
+                {formData.metadata?.fileUrl && !selectedFile && (
+                  <div className="text-sm text-muted-foreground">
+                    Arquivo atual: <a href={getFileUrl(formData.metadata.fileUrl as string)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Visualizar</a>
+                  </div>
+                )}
+              </div>
             </div>
             
             <div className="grid grid-cols-4 items-center gap-4">
@@ -1111,13 +1175,60 @@ const ContentManager = () => {
               <Label htmlFor="categoryColor" className="text-right">
                 Cor
               </Label>
-              <Input
-                id="categoryColor"
-                type="color"
-                value={categoryForm.color || '#3b82f6'}
-                onChange={(e) => setCategoryForm({...categoryForm, color: e.target.value})}
-                className="h-10 w-16 p-1"
-              />
+              <div className="col-span-3">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <div 
+                        className="w-4 h-4 rounded-full mr-2 border border-gray-200" 
+                        style={{ backgroundColor: categoryForm.color || '#3b82f6' }} 
+                      />
+                      {categoryForm.color || '#3b82f6'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-3">
+                    <div className="grid gap-4">
+                      <div className="space-y-2">
+                        <h4 className="font-medium leading-none text-sm">Cores Predefinidas</h4>
+                        <div className="grid grid-cols-5 gap-2">
+                          {presetColors.map((color) => (
+                            <button
+                              key={color}
+                              className={`w-8 h-8 rounded-full border border-slate-200 cursor-pointer hover:scale-110 transition-transform ${categoryForm.color === color ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+                              style={{ backgroundColor: color }}
+                              onClick={() => setCategoryForm({...categoryForm, color})}
+                              type="button"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-medium leading-none text-sm">Personalizado</h4>
+                        <div className="flex gap-2">
+                          <Input
+                            id="customColorText"
+                            value={categoryForm.color || ''}
+                            onChange={(e) => setCategoryForm({...categoryForm, color: e.target.value})}
+                            className="flex-1"
+                            placeholder="#000000"
+                            maxLength={7}
+                          />
+                          <Input
+                            id="customColorPicker"
+                            type="color"
+                            value={categoryForm.color || '#3b82f6'}
+                            onChange={(e) => setCategoryForm({...categoryForm, color: e.target.value})}
+                            className="w-10 p-1 h-10 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
             
             <div className="grid grid-cols-4 items-center gap-4">

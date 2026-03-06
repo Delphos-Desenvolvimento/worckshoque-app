@@ -27,6 +27,7 @@ export interface Content {
       options?: string[];
       required: boolean;
     }>;
+    fileUrl?: string;
   };
   accessLevel?: 'public' | 'restricted' | 'private';
   allowedRoles?: UserRole[];

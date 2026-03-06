@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +98,7 @@ interface PermissionDto {
 }
 
 export default function GestaoUsuarios() {
+  const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("todos");
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('table');
@@ -125,6 +127,52 @@ export default function GestaoUsuarios() {
   const [selectedPermissions, setSelectedPermissions] = useState<Record<string, boolean>>({});
   const [savingEdits, setSavingEdits] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'user' as 'user' | 'admin' | 'master' });
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get('openModal') === 'true') {
+      setCreateOpen(true);
+    }
+  }, [searchParams]);
+
+  const handleCreateUser = async () => {
+    try {
+        setCreatingUser(true);
+        setCreateError(null);
+
+        // Validation
+        if (!newUser.name || !newUser.email || !newUser.password) {
+            setCreateError("Preencha todos os campos obrigatórios.");
+            setCreatingUser(false);
+            return;
+        }
+
+        if (newUser.password.length < 6) {
+            setCreateError("A senha deve ter pelo menos 6 caracteres.");
+            setCreatingUser(false);
+            return;
+        }
+
+        const response = await api.post('/auth/users', newUser);
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || 'Erro ao criar usuário');
+        }
+
+        setCreateOpen(false);
+        setNewUser({ name: '', email: '', password: '', role: 'user' });
+        fetchUsuarios(true); // Refresh list
+    } catch (err) {
+        setCreateError(err instanceof Error ? err.message : 'Erro ao criar usuário');
+    } finally {
+        setCreatingUser(false);
+    }
+  };
 
   const formatPtBrDate = (value: string | null | undefined) => {
     if (!value) return null;
@@ -388,7 +436,7 @@ export default function GestaoUsuarios() {
           { 
             label: "Novo Usuário", 
             icon: Plus, 
-            onClick: () => console.log('Criando novo usuário...'),
+            onClick: () => setCreateOpen(true),
             variant: 'primary' as const
           }
         ]}
@@ -848,6 +896,85 @@ export default function GestaoUsuarios() {
             </Button>
             <Button onClick={saveUserEdits} disabled={savingEdits || !editingUser}>
               {savingEdits ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo Usuário</DialogTitle>
+            <DialogDescription>
+              Preencha os dados para criar um novo usuário.
+            </DialogDescription>
+          </DialogHeader>
+
+          {createError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {createError}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Nome</div>
+              <Input
+                value={newUser.name}
+                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                placeholder="Nome completo"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Email</div>
+              <Input
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                placeholder="email@exemplo.com"
+                type="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Senha</div>
+              <Input
+                value={newUser.password}
+                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                placeholder="Senha (mínimo 6 caracteres)"
+                type="password"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Função (Role)</div>
+              <Select 
+                value={newUser.role} 
+                onValueChange={(v) => setNewUser({ ...newUser, role: v as 'user' | 'admin' | 'master' })}
+                disabled={user?.role === 'admin'} 
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Usuário</SelectItem>
+                  {user?.role === 'master' && (
+                    <>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="master">Master</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              {user?.role === 'admin' && (
+                <p className="text-xs text-muted-foreground">Administradores só podem criar usuários com função 'Usuário'.</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creatingUser}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateUser} disabled={creatingUser}>
+              {creatingUser ? "Criando..." : "Criar Usuário"}
             </Button>
           </DialogFooter>
         </DialogContent>

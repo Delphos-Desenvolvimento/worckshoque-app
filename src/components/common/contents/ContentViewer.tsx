@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { api, getFileUrl } from '@/lib/api';
 import { Content } from './types/content.types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +11,6 @@ import { ptBR } from 'date-fns/locale';
 import { ArrowLeft, Edit, Star, Share2, Download, Bookmark, MessageSquare, ExternalLink } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { api } from '@/lib/api';
 import { toast } from 'sonner';
 
 export const ContentViewer: React.FC = () => {
@@ -77,6 +77,59 @@ export const ContentViewer: React.FC = () => {
     setIsFavorite(!isFavorite);
     // Aqui viria a chamada para a API para atualizar o favorito
     // await api.patch(`/api/contents/${content.id}/favorite`, { isFavorite: !isFavorite });
+  };
+
+  const getFileExtension = (url: string) => {
+    return url.split('.').pop()?.toLowerCase() || '';
+  };
+
+  const renderMedia = () => {
+    const rawFileUrl = content?.metadata?.fileUrl;
+    if (!rawFileUrl) return null;
+
+    const fileUrl = getFileUrl(rawFileUrl);
+    const ext = getFileExtension(rawFileUrl);
+    
+    // Images
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      return (
+        <div className="mb-6 rounded-lg overflow-hidden border bg-muted/50 flex justify-center">
+          <img 
+            src={fileUrl} 
+            alt={content?.title} 
+            className="max-h-[600px] w-auto object-contain"
+          />
+        </div>
+      );
+    }
+    
+    // Videos
+    if (['mp4', 'webm', 'mov'].includes(ext)) {
+      return (
+        <div className="mb-6 rounded-lg overflow-hidden border bg-black flex justify-center">
+          <video 
+            src={fileUrl} 
+            controls 
+            className="w-full max-h-[600px]"
+          />
+        </div>
+      );
+    }
+    
+    // PDF
+    if (ext === 'pdf') {
+      return (
+        <div className="mb-6 rounded-lg overflow-hidden border h-[600px]">
+          <iframe 
+            src={fileUrl} 
+            className="w-full h-full"
+            title={content?.title}
+          />
+        </div>
+      );
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -185,6 +238,7 @@ export const ContentViewer: React.FC = () => {
             </TabsList>
             
             <TabsContent value="content">
+              {renderMedia()}
               <div 
                 className="prose dark:prose-invert max-w-none"
                 dangerouslySetInnerHTML={{ __html: content.content }} 
@@ -262,43 +316,23 @@ export const ContentViewer: React.FC = () => {
             
             <TabsContent value="resources">
               <div className="space-y-4">
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium mb-2">Materiais para download</h3>
-                  <div className="space-y-2">
-                    <Button variant="outline" className="w-full justify-start">
-                      <Download className="h-4 w-4 mr-2" />
-                      Guia Completo em PDF
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Download className="h-4 w-4 mr-2" />
-                      Checklist de Ações
-                    </Button>
+                {content.metadata?.fileUrl ? (
+                  <div className="p-4 border rounded-lg">
+                    <h3 className="font-medium mb-2">Arquivo Anexo</h3>
+                    <div className="space-y-2">
+                      <Button variant="outline" className="w-full justify-start" asChild>
+                        <a href={getFileUrl(content.metadata.fileUrl)} target="_blank" rel="noopener noreferrer">
+                          <Download className="h-4 w-4 mr-2" />
+                          {content.metadata.fileUrl.split('/').pop() || 'Baixar Arquivo'}
+                        </a>
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium mb-2">Links úteis</h3>
-                  <div className="space-y-2">
-                    <a 
-                      href="#" 
-                      className="flex items-center text-sm text-primary hover:underline"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Site Oficial de Saúde Mental
-                    </a>
-                    <a 
-                      href="#" 
-                      className="flex items-center text-sm text-primary hover:underline"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Vídeo Explicativo
-                    </a>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhum recurso adicional disponível.
                   </div>
-                </div>
+                )}
               </div>
             </TabsContent>
           </Tabs>
