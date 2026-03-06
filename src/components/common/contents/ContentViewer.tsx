@@ -90,8 +90,17 @@ export const ContentViewer: React.FC = () => {
     const fileUrl = getFileUrl(rawFileUrl);
     const ext = getFileExtension(rawFileUrl);
     
+    // Check if content type implies video
+    const isVideo = content?.type === 'video' || ['mp4', 'webm', 'mov'].includes(ext);
+    
+    // Check if content implies PDF (usually documents or specific extension)
+    const isPdf = ext === 'pdf' || (content?.type === 'document' && ext === 'pdf'); // Stricter for PDF as document could be other things
+    
+    // Check if content implies Image
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+
     // Images
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+    if (isImage) {
       return (
         <div className="mb-6 rounded-lg overflow-hidden border bg-muted/50 flex justify-center">
           <img 
@@ -104,20 +113,22 @@ export const ContentViewer: React.FC = () => {
     }
     
     // Videos
-    if (['mp4', 'webm', 'mov'].includes(ext)) {
+    if (isVideo) {
       return (
         <div className="mb-6 rounded-lg overflow-hidden border bg-black flex justify-center">
           <video 
             src={fileUrl} 
             controls 
             className="w-full max-h-[600px]"
-          />
+          >
+            Seu navegador não suporta a tag de vídeo.
+          </video>
         </div>
       );
     }
     
     // PDF
-    if (ext === 'pdf') {
+    if (isPdf) {
       return (
         <div className="mb-6 rounded-lg overflow-hidden border h-[600px]">
           <iframe 
@@ -129,7 +140,14 @@ export const ContentViewer: React.FC = () => {
       );
     }
 
-    return null;
+    return (
+        <div className="mb-6 p-4 rounded-lg border bg-muted/20 flex items-center justify-center gap-2">
+            <Download className="h-5 w-5 text-muted-foreground" />
+            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                Baixar arquivo ({ext || 'arquivo'})
+            </a>
+        </div>
+    );
   };
 
   if (loading) {

@@ -1043,8 +1043,20 @@ const ContentManager = () => {
                   type="file"
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null;
-                    if (file && file.size > 500 * 1024 * 1024) {
-                      toast.warning('O arquivo selecionado é maior que 500MB. O upload pode demorar.');
+                    if (file) {
+                      // Warning for files larger than 50MB (High Database Strain)
+                      if (file.size > 50 * 1024 * 1024) {
+                        toast.warning('Arquivo grande (>50MB). Arquivos grandes podem causar lentidão no banco de dados.', {
+                          duration: 6000,
+                        });
+                      }
+                      
+                      // Specific warning for video files
+                      if (file.type.startsWith('video/')) {
+                         toast.info('Vídeos tendem a ser grandes. Verifique se o arquivo está otimizado.', {
+                           duration: 5000,
+                         });
+                      }
                     }
                     setSelectedFile(file);
                   }}
