@@ -62,6 +62,7 @@ interface ApiQuestionnaireData {
   estimated_time?: number;
   is_active: boolean;
   questions?: ApiQuestion[];
+  allowed_users?: { id: string }[];
 }
 
 interface QuestionOption {
@@ -88,6 +89,7 @@ interface QuestionnaireForm {
   estimated_time: number;
   is_active: boolean;
   questions: Question[];
+  allowedUserIds: string[];
 }
 
 // Opções de tipo de questionário
@@ -120,13 +122,38 @@ interface CreateQuestionnaireFormProps {
 export default function CreateQuestionnaireForm({ mode = 'create', initialData, onSave, onCancel, loading = false }: CreateQuestionnaireFormProps) {
   const { token } = useAuthStore();
   const [activeTab, setActiveTab] = useState('basic');
+  const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await axiosInstance.get('/auth/users', {
+          params: {
+            limit: 1000 // Buscar todos os usuários
+          }
+        });
+        // A API retorna { data: users[], meta: {...} }
+        if (response.data && Array.isArray(response.data.data)) {
+          setUsers(response.data.data);
+        } else if (Array.isArray(response.data)) {
+          // Fallback caso a API mude
+          setUsers(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch users', error);
+      }
+    };
+    fetchUsers();
+  }, []);
+
   const [formData, setFormData] = useState<QuestionnaireForm>({
     title: '',
     description: '',
     type: 'geral',
     estimated_time: 15,
     is_active: true,
-    questions: []
+    questions: [],
+    allowedUserIds: []
   });
   const [loadingQuestions, setLoadingQuestions] = useState(false);
 
@@ -181,6 +208,7 @@ export default function CreateQuestionnaireForm({ mode = 'create', initialData, 
       type: apiData.type,
       estimated_time: apiData.estimated_time || 15,
       is_active: apiData.is_active,
+      allowedUserIds: apiData.allowed_users?.map((u) => u.id) || [],
       questions: apiData.questions?.map((q: ApiQuestion, index: number) => ({
         id: q.id,
         question: q.question,
@@ -219,7 +247,8 @@ export default function CreateQuestionnaireForm({ mode = 'create', initialData, 
           type: 'geral',
           estimated_time: 15,
           is_active: true,
-          questions: []
+          questions: [],
+          allowedUserIds: []
         });
       } else if (!initializedRef.current) {
         // Inicializar apenas na primeira vez
@@ -240,7 +269,8 @@ export default function CreateQuestionnaireForm({ mode = 'create', initialData, 
         type: initialData.type,
         estimated_time: initialData.estimated_time,
         is_active: initialData.is_active,
-        questions: []
+        questions: [],
+        allowedUserIds: []
       });
 
       // Carregar perguntas completas
@@ -691,6 +721,39 @@ export default function CreateQuestionnaireForm({ mode = 'create', initialData, 
                 onCheckedChange={(checked) => handleInputChange('is_active', checked)}
               />
               <Label htmlFor="is_active">Questionário ativo</Label>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Usuários Permitidos</Label>
+              <div className="text-sm text-muted-foreground mb-2">
+                Selecione os usuários que podem ver este questionário. Se nenhum for selecionado, o questionário será público (visível para todos).
+              </div>
+              <div className="border rounded-md p-4 max-h-60 overflow-y-auto space-y-2">
+                {users.map((user) => (
+                  <div key={user.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`user_${user.id}`}
+                      checked={formData.allowedUserIds?.includes(user.id)}
+                      onCheckedChange={(checked) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          allowedUserIds: checked
+                            ? [...(prev.allowedUserIds || []), user.id]
+                            : (prev.allowedUserIds || []).filter((id) => id !== user.id),
+                        }));
+                      }}
+                    />
+                    <Label htmlFor={`user_${user.id}`} className="cursor-pointer">
+                      {user.name} <span className="text-muted-foreground text-xs">({user.email})</span>
+                    </Label>
+                  </div>
+                ))}
+                {users.length === 0 && (
+                  <div className="text-center text-muted-foreground py-4">
+                    Carregando usuários...
+                  </div>
+                )}
+              </div>
             </div>
             
             <div className="p-4 rounded-lg bg-muted">

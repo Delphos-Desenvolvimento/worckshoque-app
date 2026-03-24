@@ -113,6 +113,12 @@ export const PERMISSION_MAPPING = {
       description: 'Gerenciar empresas'
     },
 
+    'sistema.manage': {
+      title: 'Diagnóstico Inicial',
+      url: '/sistema/diagnostico-inicial',
+      description: 'Editar o diagnóstico da página inicial'
+    },
+
     // Relatórios
     'relatorio.view': {
       title: 'Relatórios & Métricas',
@@ -408,6 +414,7 @@ export const PERMISSION_MAPPING = {
     '/notificacoes': 'notification.view',
     '/financeiro': 'financeiro.manage',
     '/configuracoes': 'config.edit',
+    '/sistema/diagnostico-inicial': 'sistema.manage',
     '/perfil': 'user.view',
     '/agente': 'agent.chat.view',
     '/questionarios-globais': 'questionario.view',

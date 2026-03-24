@@ -12,6 +12,7 @@ import { ArrowLeft, Edit, Star, Share2, Download, Bookmark, MessageSquare, Exter
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { PdfViewer } from './PdfViewer';
 
 export const ContentViewer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -83,6 +84,27 @@ export const ContentViewer: React.FC = () => {
     return url.split('.').pop()?.toLowerCase() || '';
   };
 
+  const handleDownload = () => {
+    const rawFileUrl = content?.metadata?.fileUrl;
+    if (!rawFileUrl) return;
+
+    const fileUrl = getFileUrl(rawFileUrl);
+    
+    // Check if it's a backend upload URL
+    if (fileUrl.includes('/uploads/')) {
+       // Backend expects /uploads/:id/download
+       // fileUrl is like http://localhost:3025/api/uploads/some-id.pdf
+       // We just append /download to it.
+       // The backend controller for :id/download will handle stripping extension if needed (it does)
+       // and serve with attachment disposition.
+       
+       const downloadUrl = `${fileUrl}/download`;
+       window.open(downloadUrl, '_self'); // _self to trigger download without new tab if possible, or _blank
+    } else {
+       window.open(fileUrl, '_blank');
+    }
+  };
+
   const renderMedia = () => {
     const rawFileUrl = content?.metadata?.fileUrl;
     if (!rawFileUrl) return null;
@@ -93,8 +115,8 @@ export const ContentViewer: React.FC = () => {
     // Check if content type implies video
     const isVideo = content?.type === 'video' || ['mp4', 'webm', 'mov'].includes(ext);
     
-    // Check if content implies PDF (usually documents or specific extension)
-    const isPdf = ext === 'pdf' || (content?.type === 'document' && ext === 'pdf'); // Stricter for PDF as document could be other things
+    // Check if content implies PDF (trust the extension)
+    const isPdf = ext === 'pdf' || (content?.type as string) === 'document' || (content?.type as string) === 'pdf';
     
     // Check if content implies Image
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
@@ -114,13 +136,19 @@ export const ContentViewer: React.FC = () => {
     
     // Videos
     if (isVideo) {
+      // Force MP4 type if extension matches, otherwise fallback to empty or inferred
+      const mimeType = ext === 'mp4' ? 'video/mp4' : 
+                       ext === 'webm' ? 'video/webm' : 
+                       ext === 'mov' ? 'video/quicktime' : undefined;
+
       return (
         <div className="mb-6 rounded-lg overflow-hidden border bg-black flex justify-center">
           <video 
-            src={fileUrl} 
             controls 
             className="w-full max-h-[600px]"
+            key={fileUrl} // Force re-render on URL change
           >
+            <source src={fileUrl} type={mimeType} />
             Seu navegador não suporta a tag de vídeo.
           </video>
         </div>
@@ -130,12 +158,8 @@ export const ContentViewer: React.FC = () => {
     // PDF
     if (isPdf) {
       return (
-        <div className="mb-6 rounded-lg overflow-hidden border h-[600px]">
-          <iframe 
-            src={fileUrl} 
-            className="w-full h-full"
-            title={content?.title}
-          />
+        <div className="mb-6">
+          <PdfViewer url={fileUrl} title={content?.title} />
         </div>
       );
     }
@@ -223,7 +247,7 @@ export const ContentViewer: React.FC = () => {
               <Button variant="outline" size="icon">
                 <Share2 className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" onClick={handleDownload} title="Baixar arquivo">
                 <Download className="h-4 w-4" />
               </Button>
               {user?.role === 'admin' && (

@@ -19,10 +19,14 @@ import {
   BarChart3,
   FileText,
   Download,
-  Share2
+  Share2,
+  MessageSquare,
+  RefreshCw
 } from 'lucide-react';
 import { axiosInstance } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
+import DiagnosticChat from './DiagnosticChat';
+import { toast } from 'sonner';
 
 interface Diagnostic {
   id: string;
@@ -57,16 +61,19 @@ interface DiagnosticDetailModalProps {
 
 const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetailModalProps) => {
   const { token } = useAuthStore();
+  const [currentDiagnostic, setCurrentDiagnostic] = useState<Diagnostic>(diagnostic);
   const [responses, setResponses] = useState<QuestionResponse[]>([]);
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   // Carregar respostas detalhadas
   const loadResponses = useCallback(async () => {
     try {
       setLoadingResponses(true);
       const response = await axiosInstance.get(
-        `/questionnaires/${diagnostic.questionnaire_id}/responses`
+        `/diagnostics/${currentDiagnostic.id}/responses`
       );
       setResponses(response.data);
     } catch (error) {
@@ -74,13 +81,33 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
     } finally {
       setLoadingResponses(false);
     }
-  }, [diagnostic?.questionnaire_id]);
+  }, [currentDiagnostic.id]);
+
+  const loadDiagnostic = useCallback(async () => {
+    const response = await axiosInstance.get(`/diagnostics/${currentDiagnostic.id}`);
+    setCurrentDiagnostic(response.data);
+  }, [currentDiagnostic.id]);
 
   useEffect(() => {
     if (isOpen && diagnostic) {
+      setCurrentDiagnostic(diagnostic);
       loadResponses();
     }
   }, [isOpen, token, loadResponses, diagnostic]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (
+      currentDiagnostic.status !== 'processing' &&
+      currentDiagnostic.status !== 'processing_ai' &&
+      currentDiagnostic.status !== 'pending'
+    )
+      return;
+    const interval = window.setInterval(() => {
+      void loadDiagnostic().catch(() => {});
+    }, 4000);
+    return () => window.clearInterval(interval);
+  }, [isOpen, currentDiagnostic.status, loadDiagnostic]);
 
   const getCategoryColor = (score: number) => {
     if (score >= 80) return 'bg-green-500';
@@ -107,8 +134,12 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
     switch (status) {
       case 'completed':
         return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-blue-100 text-blue-800';
       case 'processing':
+      case 'processing_ai':
         return 'bg-yellow-100 text-yellow-800';
+      case 'error':
       case 'failed':
         return 'bg-red-100 text-red-800';
       default:
@@ -120,8 +151,14 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
     switch (status) {
       case 'completed':
         return 'Concluído';
+      case 'pending':
+        return 'Pendente';
       case 'processing':
         return 'Processando';
+      case 'processing_ai':
+        return 'Processando';
+      case 'error':
+        return 'Erro';
       case 'failed':
         return 'Falhou';
       default:
@@ -145,48 +182,98 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
 
   const handleExport = () => {
     // Implementar exportação em PDF
-    console.log('Exportar diagnóstico:', diagnostic.id);
+    console.log('Exportar diagnóstico:', currentDiagnostic.id);
   };
 
   const handleShare = () => {
     // Implementar compartilhamento
-    console.log('Compartilhar diagnóstico:', diagnostic.id);
+    console.log('Compartilhar diagnóstico:', currentDiagnostic.id);
+  };
+
+  const handleRetryAi = async () => {
+    try {
+      setRetrying(true);
+      await axiosInstance.post(`/diagnostics/${currentDiagnostic.id}/retry-ai`);
+      toast.success('Solicitação enviada. Aguardando processamento externo.');
+      await loadDiagnostic();
+      await loadResponses();
+    } catch (error: unknown) {
+      const status =
+        error &&
+        typeof error === 'object' &&
+        'response' in error &&
+        (error as { response?: { status?: unknown } }).response &&
+        typeof (error as { response?: { status?: unknown } }).response?.status ===
+          'number'
+          ? ((error as { response: { status: number } }).response.status as number)
+          : undefined;
+
+      if (status === 404) {
+        toast.error('Endpoint de retry não encontrado. Reinicie o backend.');
+      } else if (status === 403) {
+        toast.error('Você não tem permissão para reprocessar este diagnóstico.');
+      } else if (status === 429) {
+        toast.error('IA em limite de uso. Tente novamente em alguns segundos.');
+      } else {
+        const message =
+          error && typeof error === 'object' && 'message' in error
+            ? String((error as { message?: unknown }).message)
+            : 'Erro ao reprocessar';
+        toast.error(message);
+      }
+    } finally {
+      setRetrying(false);
+    }
   };
 
   if (!isOpen) return null;
 
   return createPortal(
-    <ModalLayout
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Detalhes do Diagnóstico"
-      size="xl"
-      showCloseButton={true}
-      closeOnOverlayClick={false}
-    >
-      <div className="space-y-6">
-        {/* Header com informações principais */}
-        <div className="flex items-start justify-between">
+    <>
+      <ModalLayout
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Detalhes do Diagnóstico"
+        size="xl"
+        showCloseButton={true}
+        closeOnOverlayClick={false}
+      >
+        <div className="space-y-6">
+          {/* Header com informações principais */}
+          <div className="flex items-start justify-between">
           <div className="space-y-2">
             <div className="flex items-center space-x-3">
-              <h2 className="text-2xl font-bold">{diagnostic.questionnaire.title}</h2>
-              <Badge className={`${getCategoryColor(diagnostic.score_intelligent)} text-white`}>
-                {getScoreCategory(diagnostic.score_intelligent)}
+              <h2 className="text-2xl font-bold">{currentDiagnostic.questionnaire.title}</h2>
+              <Badge className={`${getCategoryColor(currentDiagnostic.score_intelligent)} text-white`}>
+                {getScoreCategory(currentDiagnostic.score_intelligent)}
               </Badge>
             </div>
             <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-              <span>{diagnostic.questionnaire.type}</span>
+              <span>{currentDiagnostic.questionnaire.type}</span>
               <div className="flex items-center">
                 <Calendar className="h-4 w-4 mr-1" />
-                {formatDate(diagnostic.generated_at)}
+                {formatDate(currentDiagnostic.generated_at)}
               </div>
-              <Badge variant="secondary" className={getStatusColor(diagnostic.status)}>
-                {getStatusLabel(diagnostic.status)}
+              <Badge variant="secondary" className={getStatusColor(currentDiagnostic.status)}>
+                {getStatusLabel(currentDiagnostic.status)}
               </Badge>
             </div>
           </div>
           
           <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleRetryAi()}
+              disabled={retrying}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              {retrying
+                ? 'Enviando...'
+                : currentDiagnostic.status === 'pending'
+                  ? 'Reenviar'
+                  : 'Reprocessar'}
+            </Button>
             <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
               Exportar
@@ -197,6 +284,12 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
             </Button>
           </div>
         </div>
+
+        {currentDiagnostic.status === 'pending' && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            Este diagnóstico está aguardando processamento externo.
+          </div>
+        )}
 
         {/* Score principal */}
         <Card>
@@ -209,8 +302,8 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
           <CardContent>
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex flex-col items-center md:items-start space-y-1">
-                <div className={`text-6xl font-bold tracking-tighter ${getScoreTextColor(diagnostic.score_intelligent)}`}>
-                  {diagnostic.score_intelligent}%
+                <div className={`text-6xl font-bold tracking-tighter ${getScoreTextColor(currentDiagnostic.score_intelligent)}`}>
+                  {currentDiagnostic.score_intelligent}%
                 </div>
                 <p className="text-sm font-medium text-muted-foreground text-center md:text-left">Score inteligente calculado pela IA</p>
               </div>
@@ -221,9 +314,9 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                   <span>50%</span>
                   <span>100%</span>
                 </div>
-                <Progress value={getScoreProgress(diagnostic.score_intelligent)} className="h-4 w-full" />
+                <Progress value={getScoreProgress(currentDiagnostic.score_intelligent)} className="h-4 w-full" />
                 <p className="text-xs text-muted-foreground text-center md:text-right pt-1">
-                  Categoria: <span className={`font-semibold ${getScoreTextColor(diagnostic.score_intelligent)}`}>{getScoreCategory(diagnostic.score_intelligent)}</span>
+                  Categoria: <span className={`font-semibold ${getScoreTextColor(currentDiagnostic.score_intelligent)}`}>{getScoreCategory(currentDiagnostic.score_intelligent)}</span>
                 </p>
               </div>
             </div>
@@ -254,9 +347,9 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {diagnostic.areas_focus && diagnostic.areas_focus.length > 0 ? (
+                  {currentDiagnostic.areas_focus && currentDiagnostic.areas_focus.length > 0 ? (
                     <div className="space-y-2">
-                      {diagnostic.areas_focus.map((area, index) => (
+                      {currentDiagnostic.areas_focus.map((area, index) => (
                         <div key={index} className="flex items-center space-x-2">
                           <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                           <span className="text-sm">{area}</span>
@@ -287,9 +380,9 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {diagnostic.insights && diagnostic.insights.length > 0 ? (
+                  {currentDiagnostic.insights && currentDiagnostic.insights.length > 0 ? (
                     <div className="space-y-2">
-                      {diagnostic.insights.map((insight, index) => (
+                      {currentDiagnostic.insights.map((insight, index) => (
                         <div key={index} className="flex items-start space-x-2">
                           <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                           <span className="text-sm">{insight}</span>
@@ -317,16 +410,16 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Recomendações</span>
-                      <span className="font-medium">{diagnostic.recommendations?.length || 0}</span>
+                      <span className="font-medium">{currentDiagnostic.recommendations?.length || 0}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Áreas de foco</span>
-                      <span className="font-medium">{diagnostic.areas_focus?.length || 0}</span>
+                      <span className="font-medium">{currentDiagnostic.areas_focus?.length || 0}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Status</span>
-                      <Badge variant="secondary" className={getStatusColor(diagnostic.status)}>
-                        {getStatusLabel(diagnostic.status)}
+                      <Badge variant="secondary" className={getStatusColor(currentDiagnostic.status)}>
+                        {getStatusLabel(currentDiagnostic.status)}
                       </Badge>
                     </div>
                   </div>
@@ -389,9 +482,9 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {diagnostic.insights && diagnostic.insights.length > 0 ? (
+                {currentDiagnostic.insights && currentDiagnostic.insights.length > 0 ? (
                   <div className="space-y-4">
-                    {diagnostic.insights.map((insight, index) => (
+                    {currentDiagnostic.insights.map((insight, index) => (
                       <div key={index} className="flex items-start space-x-3 p-4 bg-muted/30 rounded-lg">
                         <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                           <Lightbulb className="h-4 w-4 text-primary" />
@@ -426,9 +519,9 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {diagnostic.recommendations && diagnostic.recommendations.length > 0 ? (
+                {currentDiagnostic.recommendations && currentDiagnostic.recommendations.length > 0 ? (
                   <div className="space-y-4">
-                    {diagnostic.recommendations.map((recommendation, index) => (
+                    {currentDiagnostic.recommendations.map((recommendation, index) => (
                       <div key={index} className="flex items-start space-x-3 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/30 rounded-lg">
                         <div className="w-8 h-8 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center flex-shrink-0">
                           <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -451,11 +544,25 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
           </TabsContent>
         </Tabs>
       </div>
-    </ModalLayout>,
+      </ModalLayout>
+
+      {!isChatOpen && (
+        <Button
+          className="fixed bottom-6 right-6 z-[60] rounded-full h-14 w-14 shadow-xl"
+          onClick={() => setIsChatOpen(true)}
+        >
+          <MessageSquare className="h-6 w-6" />
+        </Button>
+      )}
+
+      <DiagnosticChat
+        diagnosticId={currentDiagnostic.id}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+      />
+    </>,
     document.body
   );
 };
 
 export default DiagnosticDetailModal;
-
-

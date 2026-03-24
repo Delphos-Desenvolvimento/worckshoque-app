@@ -4,9 +4,21 @@ import { ChevronRight } from 'lucide-react';
 
 interface HeroSectionProps {
   onDiagnosticoClick: () => void;
+  title: string;
+  highlight: string;
+  description: string;
+  primaryButtonLabel: string;
+  secondaryButtonLabel: string;
 }
 
-const HeroSection: React.FC<HeroSectionProps> = ({ onDiagnosticoClick }) => {
+const HeroSection: React.FC<HeroSectionProps> = ({
+  onDiagnosticoClick,
+  title,
+  highlight,
+  description,
+  primaryButtonLabel,
+  secondaryButtonLabel,
+}) => {
   return (
     <section className="relative min-h-screen flex items-center justify-center text-white overflow-hidden">
       {/* Video Background */}
@@ -26,11 +38,13 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onDiagnosticoClick }) => {
       {/* Content */}
       <div className="relative z-20 container mx-auto px-4 md:px-6 text-center pt-20 md:pt-0">
         <h1 className="text-3xl md:text-6xl font-bold mb-3 md:mb-6 leading-tight">
-          Transforme seu ambiente de trabalho com{' '}
-          <span className="text-accent block mt-1 md:mt-2 md:inline">diagnósticos inteligentes</span>
+          {title}{' '}
+          <span className="text-accent block mt-1 md:mt-2 md:inline">
+            {highlight}
+          </span>
         </h1>
         <p className="text-base md:text-2xl mb-6 md:mb-8 text-white/90 max-w-3xl mx-auto leading-relaxed px-2">
-          Descubra problemas, receba planos de ação personalizados e acompanhe o progresso da sua equipe em tempo real.
+          {description}
         </p>
         
         <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center items-center px-4 w-full">
@@ -40,7 +54,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onDiagnosticoClick }) => {
             className="w-full sm:w-auto font-semibold px-6 md:px-8 h-12 md:h-14 text-base md:text-lg shadow-lg"
             onClick={onDiagnosticoClick}
           >
-            Fazer Diagnóstico Gratuito
+            {primaryButtonLabel}
             <ChevronRight className="ml-2 h-5 w-5" />
           </Button>
           <Button 
@@ -55,7 +69,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onDiagnosticoClick }) => {
               }
             }}
           >
-            Saiba Mais
+            {secondaryButtonLabel}
           </Button>
         </div>
       </div>

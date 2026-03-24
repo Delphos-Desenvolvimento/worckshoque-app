@@ -108,6 +108,7 @@ export default function Questionarios() {
     type: string;
     estimated_time: number;
     is_active: boolean;
+    allowedUserIds: string[];
     questions: Array<{
       question: string;
       type: string;
@@ -310,6 +311,7 @@ export default function Questionarios() {
     type: string;
     estimated_time: number;
     is_active: boolean;
+    allowedUserIds: string[];
     questions: Array<{
       question: string;
       type: string;
@@ -356,6 +358,7 @@ export default function Questionarios() {
         type: pendingQuestionnaireData.type,
         estimated_time: pendingQuestionnaireData.estimated_time,
         is_active: pendingQuestionnaireData.is_active,
+        allowedUserIds: pendingQuestionnaireData.allowedUserIds || [],
         questions: pendingQuestionnaireData.questions.map((q, index: number) => ({
           question: q.question,
           type: q.type,
@@ -598,13 +601,30 @@ export default function Questionarios() {
         throw new Error(errorData.message || 'Erro ao enviar respostas');
       }
 
-      toast.success('Questionário respondido com sucesso!');
+      const payload = await response.json().catch(() => null);
+      const processing =
+        payload &&
+        typeof payload === 'object' &&
+        (payload as { diagnostic?: { status?: string } }).diagnostic?.status ===
+          'processing';
+      toast.success(
+        processing
+          ? 'Respostas enviadas. Diagnóstico em processamento...'
+          : 'Questionário respondido com sucesso!',
+      );
       setIsRespondModalOpen(false);
       
       // Opcional: recarregar dados ou redirecionar
     } catch (error: unknown) {
       console.error('Erro ao enviar respostas:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao enviar respostas. Tente novamente.';
+      const isAbort =
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error instanceof Error && error.name === 'AbortError');
+      const errorMessage = isAbort
+        ? 'A solicitação demorou demais e foi cancelada. Tente novamente.'
+        : error instanceof Error
+          ? error.message
+          : 'Erro ao enviar respostas. Tente novamente.';
       toast.error(errorMessage);
     } finally {
       setSubmittingResponse(false);

@@ -109,6 +109,10 @@ export const menuConfig = [
         permission: 'empresa.view' as Permission,
         icon: Building 
       },
+      { 
+        permission: 'sistema.manage' as Permission,
+        icon: Settings 
+      },
     ]
   },
   {

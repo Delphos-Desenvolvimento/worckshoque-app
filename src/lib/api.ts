@@ -152,11 +152,16 @@ export const getFileUrl = (url: string) => {
   if (url.startsWith('http')) return url;
   
   const apiBaseUrl = getApiBaseUrl();
-  // Remove /api from the end if present, as static files are served from root
+  // Remove /api from the end if present
   const baseUrl = apiBaseUrl.replace(/\/api\/?$/, '');
   
   // Ensure url starts with / if not present
   const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+  
+  // If it's an upload URL (starts with /uploads) and doesn't have /api prefix, add it
+  if (cleanUrl.startsWith('/uploads/') && !cleanUrl.startsWith('/api/')) {
+    return `${baseUrl}/api${cleanUrl}`;
+  }
   
   return `${baseUrl}${cleanUrl}`;
 };

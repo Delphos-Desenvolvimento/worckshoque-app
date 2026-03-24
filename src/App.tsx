@@ -49,6 +49,7 @@ import PlanosConquistasGlobais from "./components/master/PlanosConquistasGlobais
 import Financeiro from "./components/master/Financeiro";
 import DiagnosticosGlobais from "./components/master/DiagnosticosGlobais";
 import Empresas from "./components/master/Empresas";
+import DiagnosticoInicialEditor from "./components/master/DiagnosticoInicialEditor";
 
 // Common Pages
 import Configuracoes from "./components/common/Configuracoes";
@@ -253,6 +254,7 @@ const AppWithAuth = () => {
               <Route path="/master-dashboard" element={<DashboardLayout><MasterDashboard /></DashboardLayout>} />
               <Route path="/perfis-permissoes" element={<DashboardLayout><PerfisPermissoes /></DashboardLayout>} />
               <Route path="/empresas" element={<DashboardLayout><Empresas /></DashboardLayout>} />
+              <Route path="/sistema/diagnostico-inicial" element={<DashboardLayout><DiagnosticoInicialEditor /></DashboardLayout>} />
               <Route path="/questionarios-globais" element={<DashboardLayout><QuestionariosGlobais /></DashboardLayout>} />
               <Route path="/diagnosticos-globais" element={<DashboardLayout><DiagnosticosGlobais /></DashboardLayout>} />
               <Route path="/planos-conquistas-globais" element={<DashboardLayout><PlanosConquistasGlobais /></DashboardLayout>} />
