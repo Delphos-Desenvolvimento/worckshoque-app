@@ -863,11 +863,11 @@ const DetalhesPlanoAcao = () => {
                 <div className="space-y-2">
                   {plano.tarefas.map((tarefa) => (
                     <div key={tarefa.id} className="flex items-start p-4 hover:bg-muted/30 transition-colors">
-                      <div className="flex items-start w-full">
+                      <div className="flex w-full items-start gap-3">
                         <button
                           type="button"
                           onClick={() => toggleTarefaStatus(tarefa.id, !tarefa.concluida)}
-                          className="flex-shrink-0 mt-1 mr-3"
+                          className="mt-1 flex-shrink-0"
                           aria-label={tarefa.concluida ? 'Marcar como pendente' : 'Marcar como concluída'}
                         >
                           {tarefa.concluida ? (
@@ -876,8 +876,8 @@ const DetalhesPlanoAcao = () => {
                             <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30" />
                           )}
                         </button>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium ${tarefa.concluida ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                        <div className="flex-1">
+                          <p className={`break-words whitespace-normal text-sm font-medium ${tarefa.concluida ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                             {tarefa.descricao}
                           </p>
                           {tarefa.dataConclusao && (
@@ -1124,7 +1124,7 @@ export default DetalhesPlanoAcao;
       responsaveis: [],
       tarefas: (dto.goals ?? []).map((g: GoalDto, idx: number) => ({
         id: g.id ?? `${dto.id}-g${idx}`,
-        descricao: g.title,
+        descricao: g.description?.trim() || g.title,
         concluida: g.status === 'concluida',
         dataConclusao: g.status === 'concluida' ? (g.due_date ?? undefined) : undefined,
       })),
