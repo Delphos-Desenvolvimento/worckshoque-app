@@ -95,7 +95,7 @@ import {
   ListOrdered,
   ListChecks as ListChecksIcon
 } from "lucide-react";
-import { listUserPlans, ActionPlanDto, generateActionPlanFromDiagnostic, getGlobalActionPlanStats, listActionPlansByUser, getUserActionPlanStats, ActionPlansGlobalStats, listUsers, ApiUser, listAllActionPlans, GoalDto } from "@/lib/action-plans-api";
+import { listUserPlans, ActionPlanDto, generateActionPlanFromDiagnostic, getGlobalActionPlanStats, listActionPlansByUser, getUserActionPlanStats, ActionPlansGlobalStats, listUsers, ApiUser, listAllActionPlans, GoalDto, deleteActionPlan } from "@/lib/action-plans-api";
 import { listDiagnostics, DiagnosticDto } from "@/lib/diagnostics-api";
 import { api } from "@/lib/api";
 
@@ -652,66 +652,64 @@ export default function PlanosAcaoV2() {
   const [buscaUsuario, setBuscaUsuario] = useState('');
   const [usuarioSelecionadoId, setUsuarioSelecionadoId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        if (podeGlobal) {
-          if (usuarioSelecionadoId) {
-            const [plans, stats] = await Promise.all([
-              listActionPlansByUser(usuarioSelecionadoId),
-              getUserActionPlanStats(usuarioSelecionadoId)
-            ]);
-            if (!alive) return;
-            setPlanos(plans.map(mapPlan));
-            setUserStats(stats);
-          } else {
-            const [plans, stats] = await Promise.all([
-              listAllActionPlans(),
-              getGlobalActionPlanStats()
-            ]);
-            if (!alive) return;
-            setPlanos(plans.map(mapPlan));
-            setGlobalStats(stats);
-            setUserStats(null);
-          }
+  const loadPlans = useCallback(async () => {
+    try {
+      if (podeGlobal) {
+        if (usuarioSelecionadoId) {
+          const [plans, stats] = await Promise.all([
+            listActionPlansByUser(usuarioSelecionadoId),
+            getUserActionPlanStats(usuarioSelecionadoId)
+          ]);
+          setPlanos(plans.map(mapPlan));
+          setUserStats(stats);
         } else {
-          const data = await listUserPlans();
-          if (!alive) return;
-          setPlanos(data.map(mapPlan));
-          const diagnosticId = searchParams.get('diagnosticId');
-          if (!podeGlobal && alive && (!data || data.length === 0) && diagnosticId) {
-            try {
-              toast.info('Gerando plano de ação a partir do seu diagnóstico...');
-              const created = await generateActionPlanFromDiagnostic(diagnosticId);
-              setPlanos([mapPlan(created)]);
-              toast.success('Plano de ação criado automaticamente!');
-            } catch {
-              toast.error('Não foi possível gerar o plano a partir do diagnóstico.');
-            }
-          } else if (!podeGlobal && alive && (!data || data.length === 0)) {
-            try {
-              const diagnostics: DiagnosticDto[] = await listDiagnostics();
-              const latestCompleted = diagnostics.find(d => (d.status === 'concluido') || !!d.completed_at) || diagnostics[0];
-              if (latestCompleted?.id) {
-                toast.info('Gerando plano de ação com base no seu último diagnóstico...');
-                const created = await generateActionPlanFromDiagnostic(latestCompleted.id);
-                setPlanos([mapPlan(created)]);
-                toast.success('Plano de ação criado automaticamente!');
-              }
-            } catch (error) {
-              console.error(error);
-              toast.error('Não foi possível gerar o plano a partir do diagnóstico.');
-            }
-          }
+          const [plans, stats] = await Promise.all([
+            listAllActionPlans(),
+            getGlobalActionPlanStats()
+          ]);
+          setPlanos(plans.map(mapPlan));
+          setGlobalStats(stats);
+          setUserStats(null);
         }
-      } catch {
-        if (!alive) return;
-        toast.error('Não foi possível carregar planos de ação.');
+        return;
       }
-    })();
-    return () => { alive = false; };
+
+      const data = await listUserPlans();
+      setPlanos(data.map(mapPlan));
+
+      const diagnosticId = searchParams.get('diagnosticId');
+      if ((!data || data.length === 0) && diagnosticId) {
+        try {
+          toast.info('Gerando plano de ação a partir do seu diagnóstico...');
+          const created = await generateActionPlanFromDiagnostic(diagnosticId);
+          setPlanos([mapPlan(created)]);
+          toast.success('Plano de ação criado automaticamente!');
+        } catch {
+          toast.error('Não foi possível gerar o plano a partir do diagnóstico.');
+        }
+      } else if (!data || data.length === 0) {
+        try {
+          const diagnostics: DiagnosticDto[] = await listDiagnostics();
+          const latestCompleted = diagnostics.find(d => (d.status === 'concluido') || !!d.completed_at) || diagnostics[0];
+          if (latestCompleted?.id) {
+            toast.info('Gerando plano de ação com base no seu último diagnóstico...');
+            const created = await generateActionPlanFromDiagnostic(latestCompleted.id);
+            setPlanos([mapPlan(created)]);
+            toast.success('Plano de ação criado automaticamente!');
+          }
+        } catch (error) {
+          console.error(error);
+          toast.error('Não foi possível gerar o plano a partir do diagnóstico.');
+        }
+      }
+    } catch {
+      toast.error('Não foi possível carregar planos de ação.');
+    }
   }, [searchParams, podeGlobal, usuarioSelecionadoId, mapPlan]);
+
+  useEffect(() => {
+    void loadPlans();
+  }, [loadPlans]);
 
   useEffect(() => {
     let alive = true;
@@ -1158,10 +1156,19 @@ export default function PlanosAcaoV2() {
     }
   };
 
-  const handleExcluirPlano = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este plano? Esta ação não pode ser desfeita.')) {
-      setPlanos(planos.filter(p => p.id !== id));
+  const handleExcluirPlano = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este plano? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    try {
+      await deleteActionPlan(id);
+      await loadPlans();
       toast.success('Plano excluído com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir plano:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao excluir plano.';
+      toast.error(errorMessage);
     }
   };
 

@@ -158,8 +158,8 @@ export const ContentViewer: React.FC = () => {
     // PDF
     if (isPdf) {
       return (
-        <div className="mb-6">
-          <PdfViewer url={fileUrl} title={content?.title} />
+        <div className="-mx-6 -mb-6 h-[calc(100vh-220px)] min-h-[600px] border-t">
+          <PdfViewer url={fileUrl} title={content?.title} className="rounded-none border-0" />
         </div>
       );
     }

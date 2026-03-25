@@ -21,7 +21,9 @@ import {
   Download,
   Share2,
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  BookOpen,
+  ArrowRight
 } from 'lucide-react';
 import { axiosInstance } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -59,11 +61,24 @@ interface DiagnosticDetailModalProps {
   diagnostic: Diagnostic;
 }
 
+interface RecommendedContent {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  category: {
+    name: string;
+  };
+  status: string;
+}
+
 const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetailModalProps) => {
   const { token } = useAuthStore();
   const [currentDiagnostic, setCurrentDiagnostic] = useState<Diagnostic>(diagnostic);
   const [responses, setResponses] = useState<QuestionResponse[]>([]);
   const [loadingResponses, setLoadingResponses] = useState(false);
+  const [recommendedContent, setRecommendedContent] = useState<RecommendedContent[]>([]);
+  const [loadingRecommended, setLoadingRecommended] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -88,12 +103,50 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
     setCurrentDiagnostic(response.data);
   }, [currentDiagnostic.id]);
 
+  const loadRecommendedContent = useCallback(async () => {
+    // Check if diagnostic is completed before trying to load recommendations
+    if (currentDiagnostic.status !== 'completed') {
+      setRecommendedContent([]);
+      return;
+    }
+
+    const categories = (currentDiagnostic.analysis_data?.recommended_content_categories as string[]) || [];
+    if (!categories.length) {
+      setRecommendedContent([]);
+      return;
+    }
+
+    try {
+      setLoadingRecommended(true);
+      const response = await axiosInstance.get('/contents');
+      const allContent: RecommendedContent[] = Array.isArray(response.data) ? response.data : (response.data?.items ?? []);
+      
+      // Filter content that matches at least one recommended category
+      const matched = allContent.filter((c) => 
+        c.status === 'published' && 
+        categories.some(cat => 
+          c.category?.name?.toLowerCase().includes(cat.toLowerCase()) ||
+          cat.toLowerCase().includes(c.category?.name?.toLowerCase())
+        )
+      ).slice(0, 3);
+
+      setRecommendedContent(matched);
+    } catch (error) {
+      console.error('Erro ao carregar conteúdos recomendados:', error);
+    } finally {
+      setLoadingRecommended(false);
+    }
+  }, [currentDiagnostic.analysis_data?.recommended_content_categories, currentDiagnostic.status]);
+
   useEffect(() => {
     if (isOpen && diagnostic) {
       setCurrentDiagnostic(diagnostic);
       loadResponses();
+      if (diagnostic.status === 'completed') {
+        loadRecommendedContent();
+      }
     }
-  }, [isOpen, token, loadResponses, diagnostic]);
+  }, [isOpen, token, loadResponses, loadRecommendedContent, diagnostic]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -327,7 +380,7 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-            <TabsTrigger value="responses">Respostas</TabsTrigger>
+            <TabsTrigger value="recommended">Conteúdos</TabsTrigger>
             <TabsTrigger value="insights">Insights</TabsTrigger>
             <TabsTrigger value="recommendations">Recomendações</TabsTrigger>
           </TabsList>
@@ -428,41 +481,63 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
             </div>
           </TabsContent>
 
-          {/* Respostas */}
-          <TabsContent value="responses" className="space-y-6">
+          {/* Conteúdos Recomendados */}
+          <TabsContent value="recommended" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <FileText className="h-5 w-5 mr-2" />
-                  Respostas Detalhadas
+                  <BookOpen className="h-5 w-5 mr-2" />
+                  Materiais Recomendados
                 </CardTitle>
                 <CardDescription>
-                  Suas respostas para cada pergunta do questionário
+                  Conteúdos selecionados pela IA para ajudar na resolução dos problemas identificados
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loadingResponses ? (
+                {loadingRecommended ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   </div>
-                ) : responses.length > 0 ? (
-                  <div className="space-y-4">
-                    {responses.map((response, index) => (
-                      <div key={response.question_id} className="border rounded-lg p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium">{index + 1}. {response.question_text}</h4>
-                          <Badge variant="outline">{response.score} pontos</Badge>
+                ) : recommendedContent.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {recommendedContent.map((item) => (
+                      <div 
+                        key={item.id} 
+                        className="group flex flex-col border rounded-lg overflow-hidden bg-card hover:border-primary/50 transition-all cursor-pointer"
+                        onClick={() => window.open(`/conteudos/${item.id}`, '_blank')}
+                      >
+                        <div className="p-4 flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">
+                              {item.category?.name || 'Geral'}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                              {item.type}
+                            </Badge>
+                          </div>
+                          <h4 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
+                            {item.title}
+                          </h4>
+                          {item.description && (
+                            <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                              {item.description}
+                            </p>
+                          )}
                         </div>
-                        <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded">
-                          {response.response}
-                        </p>
+                        <div className="px-4 py-2 bg-muted/30 border-t flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground">Acessar material</span>
+                          <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">Nenhuma resposta encontrada</p>
+                  <div className="text-center py-12 bg-muted/20 rounded-lg border-2 border-dashed">
+                    <BookOpen className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                    <p className="text-muted-foreground font-medium">Nenhum conteúdo específico encontrado</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1 max-w-[280px] mx-auto">
+                      Tente detalhar melhor o seu diagnóstico para que possamos recomendar materiais mais precisos.
+                    </p>
                   </div>
                 )}
               </CardContent>

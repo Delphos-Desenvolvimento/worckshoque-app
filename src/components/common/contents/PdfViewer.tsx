@@ -20,34 +20,53 @@ interface PdfViewerProps {
 export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, className }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
-  const [scale, setScale] = useState<number>(1.0);
+  const [zoom, setZoom] = useState<number>(1.0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Responsive sizing
   const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [containerHeight, setContainerHeight] = useState<number>(0);
+  const [pageAspectRatio, setPageAspectRatio] = useState<number>(1.414); // Default to A4
+
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setNumPages(0);
+    setPageNumber(1);
+    setZoom(1.0);
+    setLoading(true);
+    setError(null);
+  }, [url]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
     const observer = new ResizeObserver((entries) => {
-      if (entries[0]) {
-        // Subtract padding (32px = 2rem)
-        setContainerWidth(entries[0].contentRect.width - 32);
-      }
+      if (!entries[0]) return;
+      const { width, height } = entries[0].contentRect;
+      setContainerWidth(width);
+      setContainerHeight(height);
     });
 
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
+    observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
+  async function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
     setLoading(false);
     setError(null);
+
+    // Get aspect ratio of the first page
+    try {
+      const pdf = await pdfjs.getDocument(url).promise;
+      const firstPage = await pdf.getPage(1);
+      const viewport = firstPage.getViewport({ scale: 1 });
+      setPageAspectRatio(viewport.height / viewport.width);
+    } catch (e) {
+      console.error('Error getting page aspect ratio:', e);
+    }
   }
 
   function onDocumentLoadError(err: Error) {
@@ -56,41 +75,46 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, className }) =
     setError('Falha ao carregar o PDF. O arquivo pode estar corrompido ou inacessível.');
   }
 
-  function changePage(offset: number) {
-    setPageNumber(prevPageNumber => {
-      const newPage = prevPageNumber + offset;
-      const targetPage = Math.min(Math.max(1, newPage), numPages);
-      
-      // Only change page if it's different
-      if (targetPage !== prevPageNumber) {
-        // Scroll to the top of the viewer when page changes
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      }
-      
-      return targetPage;
-    });
-  }
-
   function previousPage() {
-    changePage(-1);
+    setPageNumber((p) => Math.max(1, p - 1));
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function nextPage() {
-    changePage(1);
+    setPageNumber((p) => Math.min(numPages || 1, p + 1));
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function zoomIn() {
-    setScale(prev => Math.min(prev + 0.2, 3.0));
+    setZoom((z) => Math.min(3.0, Number((z + 0.1).toFixed(2))));
   }
 
   function zoomOut() {
-    setScale(prev => Math.max(prev - 0.2, 0.5));
+    setZoom((z) => Math.max(0.1, Number((z - 0.1).toFixed(2))));
   }
 
+  // Calculate the scale needed to fit the page perfectly into the available container space
+  // Subtracting toolbar (approx 48px) and padding (32px)
+  const availableHeight = Math.max(0, containerHeight - 48 - 32);
+  const availableWidth = Math.max(0, containerWidth - 32);
+  
+  // Width needed to fit the full page height based on aspect ratio
+  const widthToFitHeight = availableHeight / pageAspectRatio;
+  
+  // Base width at 100% zoom should be the best fit (contain) within both width and height
+  // This ensures the user doesn't have to scroll at 100% magnification
+  const baseWidth = Math.min(availableWidth, widthToFitHeight);
+  
+  const renderWidth = baseWidth > 0 ? Math.floor(baseWidth * zoom) : undefined;
+
   return (
-    <div ref={containerRef} className={cn("flex flex-col w-full bg-card rounded-lg overflow-hidden border border-border shadow-sm", className)}>
+    <div
+      ref={containerRef}
+      className={cn(
+        "flex flex-col w-full h-full bg-card rounded-lg overflow-hidden border border-border shadow-sm",
+        className,
+      )}
+    >
       {/* Toolbar - Sticky at top */}
       <div className="sticky top-0 z-30 flex items-center justify-between p-2 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/60 border-b border-border text-foreground shrink-0 shadow-sm">
         <div className="flex items-center gap-2">
@@ -134,7 +158,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, className }) =
           </Button>
           
           <span className="text-sm font-medium min-w-[60px] text-center">
-            {Math.round(scale * 100)}%
+            {Math.round(zoom * 100)}%
           </span>
           
           <Button 
@@ -151,8 +175,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, className }) =
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 relative overflow-hidden h-[600px]">
-        {/* Floating Side Buttons - Fixed position relative to container */}
+      <div className="flex-1 relative overflow-hidden h-full min-h-0">
+        {/* Floating Side Buttons - Now relative to the VIEWPORT, not the PDF content */}
         {!loading && !error && (
           <>
             <Button
@@ -191,6 +215,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, className }) =
         <div 
           ref={scrollContainerRef}
           className="w-full h-full overflow-auto"
+          style={{ scrollbarGutter: 'stable' }}
         >
           <div 
             id="pdf-content-container"
@@ -221,8 +246,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, className }) =
               >
                 <Page 
                   pageNumber={pageNumber} 
-                  scale={scale} 
-                  width={containerWidth || undefined}
+                  width={renderWidth}
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
                   className="shadow-lg rounded-sm overflow-hidden mb-4"
