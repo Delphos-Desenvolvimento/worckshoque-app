@@ -43,7 +43,6 @@ import {
   Plus, 
   Download, 
   Upload, 
-  Pencil,
   Image as ImageIcon,
   Video,
   Music,
@@ -611,12 +610,6 @@ const DetalhesPlanoAcao = () => {
       icon: PlusCircle,
       onClick: () => toast.info('Funcionalidade de adicionar tarefa em breve!'),
       variant: 'primary' as const
-    },
-    {
-      label: 'Editar Plano',
-      icon: Pencil,
-      onClick: () => navigate(`/planos-acao/editar/${plano.id}`),
-      variant: 'secondary' as const
     },
     {
       label: 'Exportar',
