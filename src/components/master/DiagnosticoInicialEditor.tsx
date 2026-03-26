@@ -27,6 +27,7 @@ import {
   clearHomepageDiagnosticPreviewConfig,
   DEFAULT_HOMEPAGE_DIAGNOSTIC_CONFIG,
   loadHomepageDiagnosticConfig,
+  HOMEPAGE_DIAGNOSTIC_PREVIEW_MESSAGE_TYPE,
   HOMEPAGE_DIAGNOSTIC_PREVIEW_UPDATED_EVENT,
   resetHomepageDiagnosticConfig,
   saveHomepageDiagnosticConfig,
@@ -50,17 +51,40 @@ export default function DiagnosticoInicialEditor() {
   );
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewUrl = '/?previewHomepageDiagnostic=1';
+  const previewTargetOrigin = useMemo(() => {
+    try {
+      return new URL(previewUrl, window.location.origin).origin;
+    } catch {
+      return '*';
+    }
+  }, [previewUrl]);
 
   const isDirty = useMemo(() => {
     return JSON.stringify(form) !== JSON.stringify(baseline);
   }, [form, baseline]);
 
+  const notifyPreview = React.useCallback(() => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: HOMEPAGE_DIAGNOSTIC_PREVIEW_MESSAGE_TYPE },
+        previewTargetOrigin,
+      );
+    } catch {
+      try {
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: HOMEPAGE_DIAGNOSTIC_PREVIEW_MESSAGE_TYPE },
+          '*',
+        );
+      } catch {
+        return;
+      }
+    }
+  }, [previewTargetOrigin]);
+
   useEffect(() => {
     saveHomepageDiagnosticPreviewConfig(form);
-    iframeRef.current?.contentWindow?.dispatchEvent(
-      new Event(HOMEPAGE_DIAGNOSTIC_PREVIEW_UPDATED_EVENT),
-    );
-  }, [form]);
+    notifyPreview();
+  }, [form, notifyPreview]);
 
   useEffect(() => {
     return () => {
@@ -303,7 +327,10 @@ export default function DiagnosticoInicialEditor() {
   };
 
   const reloadPreview = () => {
-    iframeRef.current?.contentWindow?.location.reload();
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const currentSrc = iframe.getAttribute('src') || previewUrl;
+    iframe.setAttribute('src', currentSrc);
   };
 
   const openPreview = () => {
@@ -942,9 +969,7 @@ export default function DiagnosticoInicialEditor() {
                       src={previewUrl}
                       className="w-full h-[780px] bg-background"
                       onLoad={() => {
-                        iframeRef.current?.contentWindow?.dispatchEvent(
-                          new Event(HOMEPAGE_DIAGNOSTIC_PREVIEW_UPDATED_EVENT),
-                        );
+                        notifyPreview();
                       }}
                     />
                   </div>

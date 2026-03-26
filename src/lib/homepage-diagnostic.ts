@@ -188,6 +188,8 @@ export const HOMEPAGE_DIAGNOSTIC_CONFIG_UPDATED_EVENT =
   'workchoq:homepageDiagnosticConfigUpdated';
 export const HOMEPAGE_DIAGNOSTIC_PREVIEW_UPDATED_EVENT =
   'workchoq:homepageDiagnosticPreviewUpdated';
+export const HOMEPAGE_DIAGNOSTIC_PREVIEW_MESSAGE_TYPE =
+  'workchoq:homepageDiagnosticPreviewMessage';
 
 function parseConfig(raw: string | null): HomepageDiagnosticConfig {
   try {
@@ -366,9 +368,21 @@ export function useHomepageDiagnosticConfig(options?: {
           ? loadHomepageDiagnosticPreviewConfig()
           : loadHomepageDiagnosticConfig(),
       );
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      if (
+        typeof event.data === 'object' &&
+        event.data !== null &&
+        'type' in event.data &&
+        (event.data as { type?: string }).type ===
+          HOMEPAGE_DIAGNOSTIC_PREVIEW_MESSAGE_TYPE
+      ) {
+        refresh();
+      }
+    };
     if (mode === 'saved') window.addEventListener('storage', refresh);
     window.addEventListener(HOMEPAGE_DIAGNOSTIC_CONFIG_UPDATED_EVENT, refresh);
     window.addEventListener(HOMEPAGE_DIAGNOSTIC_PREVIEW_UPDATED_EVENT, refresh);
+    window.addEventListener('message', handleMessage);
     return () => {
       if (mode === 'saved') window.removeEventListener('storage', refresh);
       window.removeEventListener(HOMEPAGE_DIAGNOSTIC_CONFIG_UPDATED_EVENT, refresh);
@@ -376,6 +390,7 @@ export function useHomepageDiagnosticConfig(options?: {
         HOMEPAGE_DIAGNOSTIC_PREVIEW_UPDATED_EVENT,
         refresh,
       );
+      window.removeEventListener('message', handleMessage);
     };
   }, [mode]);
 
