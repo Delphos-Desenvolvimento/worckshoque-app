@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, createContext, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext, useCallback, useMemo } from 'react';
+import { useTheme } from 'next-themes';
 import { useAuthStore } from '@/stores/authStore';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { api } from '@/lib/api';
@@ -57,6 +58,14 @@ import {
   Zap,
   LayoutGrid
 } from 'lucide-react';
+import {
+  DEFAULT_USER_PREFERENCES,
+  applyUserPreferencesToDocument,
+  loadUserPreferences,
+  resetUserPreferences,
+  saveUserPreferences,
+  type UserPreferences as StoredUserPreferences,
+} from '@/lib/user-preferences';
 
 // ==================== INTERFACES ====================
 
@@ -74,16 +83,7 @@ interface UserProfile {
   avatar?: string;
 }
 
-interface UserPreferences {
-  language: string;
-  timezone: string;
-  theme: string;
-  dashboardLayout: string;
-  interfaceDensity: string;
-  sidebarPosition: string;
-  sidebarMode: string;
-  animations: boolean;
-}
+type UserPreferences = StoredUserPreferences;
 
 interface NotificationSettings {
   email: boolean;
@@ -894,40 +894,68 @@ function UserProfileContent({ canEdit, setMessage }: { canEdit: boolean; setMess
 
 function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; setMessage: (msg: ConfigMessage | null) => void }) {
   const tabsCtx = useContext(ConfigTabsContext);
-  const [preferences, setPreferences] = useState<UserPreferences>({
-    language: 'pt-BR',
-    timezone: 'America/Sao_Paulo',
-    theme: 'light',
-    dashboardLayout: 'default',
-    interfaceDensity: 'comfortable',
-    sidebarPosition: 'left',
-    sidebarMode: 'expanded',
-    animations: true
-  });
+  const { user } = useAuthStore();
+  const { setTheme, resolvedTheme } = useTheme();
+  const [preferences, setPreferences] = useState<UserPreferences>(
+    DEFAULT_USER_PREFERENCES,
+  );
 
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
   const initialPreferencesRef = useRef<UserPreferences | null>(null);
+  const applyPreferences = useCallback(
+    (nextPreferences: UserPreferences) => {
+      setTheme(nextPreferences.theme === 'auto' ? 'system' : nextPreferences.theme);
+      applyUserPreferencesToDocument(
+        nextPreferences,
+        nextPreferences.theme === 'auto'
+          ? resolvedTheme ?? 'dark'
+          : nextPreferences.theme,
+      );
+    },
+    [resolvedTheme, setTheme],
+  );
+  const updatePreferences = useCallback(
+    <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
+      setPreferences((prev) => {
+        const next = { ...prev, [key]: value };
+        applyPreferences(next);
+        return next;
+      });
+      setIsDirty(true);
+    },
+    [applyPreferences],
+  );
+  const localePreview = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(preferences.language, {
+        dateStyle: 'full',
+        timeStyle: 'short',
+        timeZone: preferences.timezone,
+      }).format(new Date());
+    } catch {
+      return '';
+    }
+  }, [preferences.language, preferences.timezone]);
 
-  // Carregar preferências
   useEffect(() => {
-    // TODO: Implementar carregamento real das preferências
-    const initial = {
-      language: 'pt-BR',
-      timezone: 'America/Sao_Paulo',
-      theme: 'light',
-      dashboardLayout: 'default',
-      interfaceDensity: 'comfortable',
-      sidebarPosition: 'left',
-      sidebarMode: 'expanded',
-      animations: true
-    };
+    const initial = loadUserPreferences(user?.id);
     setPreferences(initial);
     initialPreferencesRef.current = initial;
-    const t = setTimeout(() => setIsInitialLoading(false), 500);
+    applyPreferences(initial);
+    const t = setTimeout(() => setIsInitialLoading(false), 150);
     return () => clearTimeout(t);
-  }, []);
+  }, [applyPreferences, user?.id]);
+
+  useEffect(() => {
+    applyUserPreferencesToDocument(
+      preferences,
+      preferences.theme === 'auto'
+        ? resolvedTheme ?? 'dark'
+        : preferences.theme,
+    );
+  }, [preferences, resolvedTheme]);
 
   const handleSavePreferences = useCallback(async () => {
     if (!canEdit) return;
@@ -936,16 +964,16 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
     setMessage(null);
     
     try {
-      // TODO: Implementar chamada real para API
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simular delay
-      
+      saveUserPreferences(user?.id, preferences);
+      initialPreferencesRef.current = preferences;
+      setIsDirty(false);
       setMessage({ type: 'success', text: 'Preferências salvas com sucesso!' });
     } catch (error: unknown) {
       setMessage({ type: 'error', text: 'Erro ao salvar preferências' });
     } finally {
       setIsLoading(false);
     }
-  }, [canEdit, setMessage]);
+  }, [canEdit, preferences, setMessage, user?.id]);
 
   // Registrar tab no contexto pai
   useEffect(() => {
@@ -955,13 +983,14 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
       reset: () => {
         if (initialPreferencesRef.current) {
           setPreferences(initialPreferencesRef.current);
+          applyPreferences(initialPreferencesRef.current);
         }
         setIsDirty(false);
       },
       requiredPermission: 'preferences.edit'
     });
     return () => tabsCtx?.unregisterTab('preferencias');
-  }, [isDirty, tabsCtx, handleSavePreferences]);
+  }, [applyPreferences, isDirty, tabsCtx, handleSavePreferences]);
 
   const handleResetPreferences = useCallback(async () => {
     if (!canEdit) return;
@@ -970,27 +999,18 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
     setMessage(null);
     
     try {
-      // TODO: Implementar chamada real para API
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simular delay
-      
-      setPreferences({
-        language: 'pt-BR',
-        timezone: 'America/Sao_Paulo',
-        theme: 'light',
-        dashboardLayout: 'default',
-        interfaceDensity: 'comfortable',
-        sidebarPosition: 'left',
-        sidebarMode: 'expanded',
-        animations: true
-      });
-      
+      resetUserPreferences(user?.id);
+      setPreferences(DEFAULT_USER_PREFERENCES);
+      initialPreferencesRef.current = DEFAULT_USER_PREFERENCES;
+      applyPreferences(DEFAULT_USER_PREFERENCES);
+      setIsDirty(false);
       setMessage({ type: 'success', text: 'Preferências resetadas para o padrão!' });
     } catch (error: unknown) {
       setMessage({ type: 'error', text: 'Erro ao resetar preferências' });
     } finally {
       setIsLoading(false);
     }
-  }, [canEdit, setMessage]);
+  }, [applyPreferences, canEdit, setMessage, user?.id]);
 
   return (
     <div className="space-y-6">
@@ -1011,7 +1031,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Label htmlFor="language">Idioma da Interface</Label>
               <Select 
                 value={preferences.language} 
-                onValueChange={(value) => { setPreferences(prev => ({ ...prev, language: value })); setIsDirty(true); }}
+                onValueChange={(value) => updatePreferences('language', value)}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -1029,7 +1049,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Label htmlFor="timezone">Fuso Horário</Label>
               <Select 
                 value={preferences.timezone} 
-                onValueChange={(value) => { setPreferences(prev => ({ ...prev, timezone: value })); setIsDirty(true); }}
+                onValueChange={(value) => updatePreferences('timezone', value)}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -1045,6 +1065,11 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               </Select>
             </div>
           </div>
+          {localePreview ? (
+            <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+              Pré-visualização da localidade: {localePreview}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -1065,7 +1090,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Label htmlFor="theme">Tema</Label>
               <Select 
                 value={preferences.theme} 
-                onValueChange={(value) => { setPreferences(prev => ({ ...prev, theme: value })); setIsDirty(true); }}
+                onValueChange={(value) => updatePreferences('theme', value)}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -1082,7 +1107,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Label htmlFor="interfaceDensity">Densidade da Interface</Label>
               <Select 
                 value={preferences.interfaceDensity} 
-                onValueChange={(value) => { setPreferences(prev => ({ ...prev, interfaceDensity: value })); setIsDirty(true); }}
+                onValueChange={(value) => updatePreferences('interfaceDensity', value)}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -1108,7 +1133,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Switch
                 id="animations"
                 checked={preferences.animations}
-                onCheckedChange={(checked) => { setPreferences(prev => ({ ...prev, animations: checked })); setIsDirty(true); }}
+                onCheckedChange={(checked) => updatePreferences('animations', checked)}
                 disabled={!canEdit}
               />
             </div>
@@ -1133,7 +1158,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Label htmlFor="dashboardLayout">Layout Padrão</Label>
               <Select 
                 value={preferences.dashboardLayout} 
-                onValueChange={(value) => setPreferences(prev => ({ ...prev, dashboardLayout: value }))}
+                onValueChange={(value) => updatePreferences('dashboardLayout', value)}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -1151,7 +1176,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Label htmlFor="sidebarPosition">Posição da Sidebar</Label>
               <Select 
                 value={preferences.sidebarPosition} 
-                onValueChange={(value) => setPreferences(prev => ({ ...prev, sidebarPosition: value }))}
+                onValueChange={(value) => updatePreferences('sidebarPosition', value)}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -1169,7 +1194,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
             <Label htmlFor="sidebarMode">Modo da Sidebar</Label>
             <Select 
               value={preferences.sidebarMode} 
-              onValueChange={(value) => setPreferences(prev => ({ ...prev, sidebarMode: value }))}
+              onValueChange={(value) => updatePreferences('sidebarMode', value)}
               disabled={!canEdit}
             >
               <SelectTrigger>
@@ -1202,7 +1227,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Label htmlFor="sidebarPosition">Posição da Sidebar</Label>
               <Select 
                 value={preferences.sidebarPosition}
-                onValueChange={(value) => { setPreferences(prev => ({ ...prev, sidebarPosition: value as typeof prev.sidebarPosition })); setIsDirty(true); }}
+                onValueChange={(value) => updatePreferences('sidebarPosition', value)}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -1218,7 +1243,7 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
               <Label htmlFor="sidebarMode">Modo da Sidebar</Label>
               <Select 
                 value={preferences.sidebarMode}
-                onValueChange={(value) => { setPreferences(prev => ({ ...prev, sidebarMode: value as typeof prev.sidebarMode })); setIsDirty(true); }}
+                onValueChange={(value) => updatePreferences('sidebarMode', value)}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
@@ -1237,8 +1262,17 @@ function UserPreferencesContent({ canEdit, setMessage }: { canEdit: boolean; set
 
       {/* Ações */}
       {isDirty && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
-          Há alterações não salvas nas preferências.
+        <div className="flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900 md:flex-row md:items-center md:justify-between">
+          <span>Há alterações não salvas nas preferências.</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleResetPreferences()}
+            disabled={isLoading || !canEdit}
+          >
+            Restaurar padrão
+          </Button>
         </div>
       )}
 

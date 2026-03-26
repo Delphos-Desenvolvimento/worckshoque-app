@@ -684,10 +684,15 @@ export default function DiagnosticoInicialEditor() {
                               {form.modalSchema.categories &&
                               form.modalSchema.categories.length > 0 ? (
                                 <Select
-                                  value={(field.category ?? '').toString()}
+                                  value={
+                                    field.category
+                                      ? field.category.toString()
+                                      : '__none__'
+                                  }
                                   onValueChange={(value) =>
                                     updateField(page.id, field.id, {
-                                      category: value,
+                                      category:
+                                        value === '__none__' ? '' : value,
                                     })
                                   }
                                 >
@@ -695,7 +700,9 @@ export default function DiagnosticoInicialEditor() {
                                     <SelectValue placeholder="Selecione" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="">Sem categoria</SelectItem>
+                                    <SelectItem value="__none__">
+                                      Sem categoria
+                                    </SelectItem>
                                     {form.modalSchema.categories.map((c) => (
                                       <SelectItem key={c} value={c}>
                                         {c}

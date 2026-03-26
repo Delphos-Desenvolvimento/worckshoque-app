@@ -494,12 +494,22 @@ export default function Questionarios() {
   };
 
   const handleEditQuestionnaire = (questionnaire: Questionnaire) => {
+    if (!canManageQuestionnaire(questionnaire)) {
+      toast.error('Você só pode editar questionários criados por você.');
+      return;
+    }
+
     setModalMode('edit');
     setEditingQuestionnaire(questionnaire);
     setIsCreateModalOpen(true);
   };
 
   const handleToggleActive = async (questionnaire: Questionnaire) => {
+    if (!canManageQuestionnaire(questionnaire)) {
+      toast.error('Você só pode alterar questionários criados por você.');
+      return;
+    }
+
     try {
       if (!token) {
         throw new Error('Token de autenticação não encontrado');
@@ -529,6 +539,12 @@ export default function Questionarios() {
   };
 
   const handleDeleteQuestionnaire = async (id: string) => {
+    const questionnaire = questionnaires.find((item) => item.id === id);
+    if (questionnaire && !canManageQuestionnaire(questionnaire)) {
+      toast.error('Você não pode excluir questionários criados por outro perfil.');
+      return;
+    }
+
     if (!window.confirm('Tem certeza que deseja excluir este questionário? Esta ação não pode ser desfeita e excluirá todos os diagnósticos e respostas associados.')) {
       return;
     }
@@ -635,6 +651,17 @@ export default function Questionarios() {
   const canCreate = hasPermission('questionario.create');
   const canEdit = hasPermission('questionario.edit');
   const canDelete = hasPermission('questionario.delete');
+  const canManageQuestionnaire = useCallback(
+    (questionnaire: Questionnaire) => {
+      const role = user?.role;
+      if (role === 'master' || role === 'admin') {
+        return true;
+      }
+
+      return questionnaire.created_by === user?.id;
+    },
+    [user?.id, user?.role],
+  );
 
   if (loading) {
     return (
@@ -795,6 +822,7 @@ export default function Questionarios() {
               onToggleActive={handleToggleActive}
               canEdit={canEdit}
               canDelete={canDelete}
+              canManageQuestionnaire={canManageQuestionnaire}
             />
           )}
           {viewMode === 'list' && (
@@ -807,6 +835,7 @@ export default function Questionarios() {
               onToggleActive={handleToggleActive}
               canEdit={canEdit}
               canDelete={canDelete}
+              canManageQuestionnaire={canManageQuestionnaire}
             />
           )}
           {viewMode === 'table' && (
@@ -819,6 +848,7 @@ export default function Questionarios() {
               onToggleActive={handleToggleActive}
               canEdit={canEdit}
               canDelete={canDelete}
+              canManageQuestionnaire={canManageQuestionnaire}
             />
           )}
           {viewMode === 'timeline' && (
@@ -831,6 +861,7 @@ export default function Questionarios() {
               onToggleActive={handleToggleActive}
               canEdit={canEdit}
               canDelete={canDelete}
+              canManageQuestionnaire={canManageQuestionnaire}
             />
           )}
         </>

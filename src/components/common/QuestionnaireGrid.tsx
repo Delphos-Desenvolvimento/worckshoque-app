@@ -36,6 +36,7 @@ interface QuestionnaireGridProps {
   onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
+  canManageQuestionnaire?: (questionnaire: Questionnaire) => boolean;
 }
 
 const getQuestionnaireIcon = (type: string) => {
@@ -73,11 +74,17 @@ export default function QuestionnaireGrid({
   onDelete, 
   onToggleActive,
   canEdit, 
-  canDelete 
+  canDelete,
+  canManageQuestionnaire,
 }: QuestionnaireGridProps) {
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {questionnaires.map((questionnaire) => (
+      {questionnaires.map((questionnaire) => {
+        const canManage = canManageQuestionnaire
+          ? canManageQuestionnaire(questionnaire)
+          : true;
+
+        return (
         <Card key={questionnaire.id} className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group">
           <CardHeader className="pb-4">
             <div className="flex items-start justify-between">
@@ -95,7 +102,7 @@ export default function QuestionnaireGrid({
                 </div>
               </div>
               <div className="flex gap-1">
-                {canEdit && (
+                {canEdit && canManage && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -105,7 +112,7 @@ export default function QuestionnaireGrid({
                     <Edit className="w-4 h-4" />
                   </Button>
                 )}
-                {canDelete && (
+                {canDelete && canManage && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -149,7 +156,7 @@ export default function QuestionnaireGrid({
                 >
                   {questionnaire.is_active ? "ATIVO" : "Inativo"}
                 </Badge>
-                {canEdit && (
+                {canEdit && canManage && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -189,7 +196,8 @@ export default function QuestionnaireGrid({
             </div>
           </CardContent>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }

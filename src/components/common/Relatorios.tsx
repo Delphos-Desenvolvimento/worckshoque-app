@@ -380,10 +380,6 @@ export default function Relatorios() {
     
     try {
       if (user?.role === 'user') {
-        if (!user.company) {
-          setCompanyOwnerData(null);
-          return;
-        }
         try {
           const data = await getCompanyDashboard(range, user.company);
           setCompanyOwnerData(data);

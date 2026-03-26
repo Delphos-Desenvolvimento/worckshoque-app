@@ -44,7 +44,13 @@ import { usePermissions } from "@/contexts/PermissionsContext";
 
 import { menuConfig } from "./sidebarConfig";
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  sidebarPosition?: 'left' | 'right' | string;
+}
+
+export function AppSidebar({
+  sidebarPosition = 'left',
+}: AppSidebarProps) {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, logout } = useAuthStore();
@@ -134,7 +140,7 @@ export function AppSidebar() {
   };
 
   return (
-    <div className={`h-screen bg-slate-900 text-white flex flex-col fixed left-0 top-0 z-50 ${collapsed ? 'w-20' : 'w-80'}`}>
+    <div className={`h-screen bg-slate-900 text-white flex flex-col fixed top-0 z-50 ${sidebarPosition === 'right' ? 'right-0' : 'left-0'} ${collapsed ? 'w-20' : 'w-80'}`}>
       {/* Header */}
       <div className={`border-b border-slate-700/50 flex-shrink-0 ${collapsed ? 'p-4' : 'p-6'}`}>
         <div className="flex items-center justify-center">

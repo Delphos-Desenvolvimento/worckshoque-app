@@ -34,6 +34,7 @@ interface QuestionnaireTableProps {
   onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
+  canManageQuestionnaire?: (questionnaire: Questionnaire) => boolean;
 }
 
 const getQuestionnaireIcon = (type: string) => {
@@ -71,7 +72,8 @@ export default function QuestionnaireTable({
   onDelete,
   onToggleActive,
   canEdit, 
-  canDelete 
+  canDelete,
+  canManageQuestionnaire,
 }: QuestionnaireTableProps) {
   return (
     <Card className="overflow-hidden border-border bg-card">
@@ -96,7 +98,12 @@ export default function QuestionnaireTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {questionnaires.map((questionnaire, index) => (
+              {questionnaires.map((questionnaire) => {
+                const canManage = canManageQuestionnaire
+                  ? canManageQuestionnaire(questionnaire)
+                  : true;
+
+                return (
                 <tr key={questionnaire.id} className="hover:bg-muted/30 transition-colors bg-card">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
@@ -141,8 +148,8 @@ export default function QuestionnaireTable({
                       <Badge 
                         variant={questionnaire.is_active ? "default" : "secondary"}
                         className={`cursor-pointer ${questionnaire.is_active ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 hover:bg-gray-600"}`}
-                        onClick={() => canEdit && onToggleActive(questionnaire)}
-                        title={canEdit ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
+                        onClick={() => canEdit && canManage && onToggleActive(questionnaire)}
+                        title={canEdit && canManage ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
                       >
                         {questionnaire.is_active ? "Ativo" : "Inativo"}
                       </Badge>
@@ -171,7 +178,7 @@ export default function QuestionnaireTable({
                       >
                         <Eye className="w-3 h-3" />
                       </Button>
-                      {canEdit && (
+                      {canEdit && canManage && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -180,7 +187,7 @@ export default function QuestionnaireTable({
                           <Edit className="w-3 h-3" />
                         </Button>
                       )}
-                      {canDelete && (
+                      {canDelete && canManage && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -193,7 +200,8 @@ export default function QuestionnaireTable({
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -201,4 +209,3 @@ export default function QuestionnaireTable({
     </Card>
   );
 }
-

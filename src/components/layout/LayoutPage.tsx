@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { MobileLayout } from "./mobile/MobileLayout";
@@ -7,6 +7,12 @@ import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { AuthPermissionsWrapper } from "@/components/common/AuthPermissionsWrapper";
 import { ProtectedRoute, usePagePermission } from "@/components/common/ProtectedRoute";
 import NotificationCenter from "@/components/common/NotificationCenter";
+import {
+  DEFAULT_USER_PREFERENCES,
+  USER_PREFERENCES_UPDATED_EVENT,
+  loadUserPreferences,
+  type UserPreferences,
+} from "@/lib/user-preferences";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -14,12 +20,45 @@ interface DashboardLayoutProps {
 
 import { AccessibilityWidget } from "../common/AccessibilityWidget";
 
-function DashboardContent({ children }: DashboardLayoutProps) {
+function DashboardContent({
+  children,
+  preferences,
+}: DashboardLayoutProps & { preferences: UserPreferences }) {
   const { state, isMobile } = useSidebar();
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const collapsed = state === "collapsed";
+  const sidebarOnRight = preferences.sidebarPosition === 'right';
+  const contentShiftClass = isMobile
+    ? 'ml-0 mr-0'
+    : sidebarOnRight
+      ? collapsed
+        ? 'mr-20 ml-0'
+        : 'mr-80 ml-0'
+      : collapsed
+        ? 'ml-20 mr-0'
+        : 'ml-80 mr-0';
+  const headerPaddingClass =
+    preferences.interfaceDensity === 'compact'
+      ? 'px-3 md:px-4'
+      : preferences.interfaceDensity === 'spacious'
+        ? 'px-6 md:px-8'
+        : 'px-4 md:px-6';
+  const contentPaddingClass =
+    preferences.interfaceDensity === 'compact'
+      ? 'px-3 py-3 md:px-4 md:py-4'
+      : preferences.interfaceDensity === 'spacious'
+        ? 'px-6 py-6 md:px-8 md:py-8'
+        : 'px-4 py-4 md:px-6 md:py-6';
+  const contentWidthClass =
+    preferences.dashboardLayout === 'compact'
+      ? 'mx-auto max-w-5xl'
+      : preferences.dashboardLayout === 'minimal'
+        ? 'mx-auto max-w-4xl'
+        : preferences.dashboardLayout === 'detailed'
+          ? 'max-w-none'
+          : 'mx-auto max-w-7xl';
 
   // Verificar permissão da página atual
   const currentPath = location.pathname;
@@ -129,10 +168,10 @@ function DashboardContent({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen w-full">
-      <AppSidebar />
+      <AppSidebar sidebarPosition={preferences.sidebarPosition} />
       <AccessibilityWidget />
-      <main className={`transition-all duration-300 ${isMobile ? 'ml-0' : (collapsed ? 'ml-20' : 'ml-80')}`}>
-        <header className="h-16 flex items-center justify-between border-b px-4 md:px-6 bg-background transition-colors duration-300">
+      <main className={`transition-all duration-300 ${contentShiftClass}`}>
+        <header className={`h-16 flex items-center justify-between border-b bg-background transition-colors duration-300 ${headerPaddingClass}`}>
           <SidebarTrigger />
           <div className="flex items-center gap-4">
             <NotificationCenter />
@@ -141,14 +180,16 @@ function DashboardContent({ children }: DashboardLayoutProps) {
             </div>
           </div>
         </header>
-        <div className="px-4 py-4 md:px-6 md:py-6 min-h-screen">
-          {requiredPermission ? (
-            <ProtectedRoute permission={requiredPermission}>
-              {children}
-            </ProtectedRoute>
-          ) : (
-            children
-          )}
+        <div className={`min-h-screen ${contentPaddingClass}`}>
+          <div className={contentWidthClass}>
+            {requiredPermission ? (
+              <ProtectedRoute permission={requiredPermission}>
+                {children}
+              </ProtectedRoute>
+            ) : (
+              children
+            )}
+          </div>
         </div>
       </main>
     </div>
@@ -156,7 +197,27 @@ function DashboardContent({ children }: DashboardLayoutProps) {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+  const [preferences, setPreferences] = useState<UserPreferences>(
+    DEFAULT_USER_PREFERENCES,
+  );
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    const syncPreferences = () => {
+      const nextPreferences = loadUserPreferences(user?.id);
+      setPreferences(nextPreferences);
+      setSidebarOpen(nextPreferences.sidebarMode !== 'collapsed');
+    };
+
+    syncPreferences();
+    window.addEventListener(USER_PREFERENCES_UPDATED_EVENT, syncPreferences);
+    return () =>
+      window.removeEventListener(
+        USER_PREFERENCES_UPDATED_EVENT,
+        syncPreferences,
+      );
+  }, [user?.id]);
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -164,8 +225,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <AuthPermissionsWrapper>
-      <SidebarProvider>
-        <DashboardContent>{children}</DashboardContent>
+      <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <DashboardContent preferences={preferences}>{children}</DashboardContent>
       </SidebarProvider>
     </AuthPermissionsWrapper>
   );

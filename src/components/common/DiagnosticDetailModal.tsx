@@ -219,6 +219,11 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
     }
   };
 
+  const analysisSummary =
+    typeof currentDiagnostic.analysis_data?.analysis_summary === 'string'
+      ? currentDiagnostic.analysis_data.analysis_summary
+      : '';
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -387,6 +392,25 @@ const DiagnosticDetailModal = ({ isOpen, onClose, diagnostic }: DiagnosticDetail
 
           {/* Visão Geral */}
           <TabsContent value="overview" className="space-y-6">
+            {analysisSummary ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <FileText className="h-5 w-5 mr-2" />
+                    Resumo Executivo
+                  </CardTitle>
+                  <CardDescription>
+                    Leitura consolidada da IA sobre o cenário diagnosticado
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm leading-7 text-muted-foreground whitespace-pre-line">
+                    {analysisSummary}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : null}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Áreas de Foco */}
               <Card>

@@ -35,15 +35,60 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-  plugins: [
-    react(),
-    mode === 'development' &&
-    componentTagger(),
-  ].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+    plugins: [
+      react(),
+      mode === 'development' &&
+      componentTagger(),
+    ].filter(Boolean),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (
+              id.includes('node_modules/react-pdf') ||
+              id.includes('node_modules/pdfjs-dist')
+            ) {
+              return 'pdf-vendor';
+            }
+            if (id.includes('node_modules/recharts')) {
+              return 'charts-vendor';
+            }
+            if (id.includes('node_modules/xlsx')) {
+              return 'xlsx-vendor';
+            }
+            if (id.includes('node_modules/framer-motion')) {
+              return 'motion-vendor';
+            }
+            if (id.includes('node_modules/date-fns')) {
+              return 'date-vendor';
+            }
+            if (
+              id.includes('node_modules/react') ||
+              id.includes('node_modules/react-dom') ||
+              id.includes('node_modules/react-router') ||
+              id.includes('node_modules/scheduler')
+            ) {
+              return 'react-vendor';
+            }
+            if (
+              id.includes('node_modules/@radix-ui') ||
+              id.includes('node_modules/@tanstack') ||
+              id.includes('node_modules/zustand') ||
+              id.includes('node_modules/next-themes') ||
+              id.includes('node_modules/sonner')
+            ) {
+              return 'ui-vendor';
+            }
+            return 'vendor';
+          },
+        },
+      },
+    },
   };
 });

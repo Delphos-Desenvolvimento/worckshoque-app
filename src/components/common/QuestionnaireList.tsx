@@ -34,6 +34,7 @@ interface QuestionnaireListProps {
   onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
+  canManageQuestionnaire?: (questionnaire: Questionnaire) => boolean;
 }
 
 const getQuestionnaireIcon = (type: string) => {
@@ -71,11 +72,17 @@ export default function QuestionnaireList({
   onDelete, 
   onToggleActive,
   canEdit, 
-  canDelete 
+  canDelete,
+  canManageQuestionnaire,
 }: QuestionnaireListProps) {
   return (
     <div className="space-y-3">
-      {questionnaires.map((questionnaire) => (
+      {questionnaires.map((questionnaire) => {
+        const canManage = canManageQuestionnaire
+          ? canManageQuestionnaire(questionnaire)
+          : true;
+
+        return (
         <Card key={questionnaire.id} className="overflow-hidden border hover:shadow-md transition-all duration-200 group">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -97,8 +104,8 @@ export default function QuestionnaireList({
                     <Badge 
                       variant={questionnaire.is_active ? "default" : "secondary"}
                       className={`text-xs cursor-pointer ${questionnaire.is_active ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 hover:bg-gray-600"}`}
-                      onClick={() => canEdit && onToggleActive(questionnaire)}
-                      title={canEdit ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
+                      onClick={() => canEdit && canManage && onToggleActive(questionnaire)}
+                      title={canEdit && canManage ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
                     >
                       {questionnaire.is_active ? "Ativo" : "Inativo"}
                     </Badge>
@@ -142,7 +149,7 @@ export default function QuestionnaireList({
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
-                {canEdit && (
+                {canEdit && canManage && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -152,7 +159,7 @@ export default function QuestionnaireList({
                     <Edit className="w-4 h-4" />
                   </Button>
                 )}
-                {canDelete && (
+                {canDelete && canManage && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -166,8 +173,8 @@ export default function QuestionnaireList({
             </div>
           </CardContent>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }
-

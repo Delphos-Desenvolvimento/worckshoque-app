@@ -1,62 +1,62 @@
-import React, { useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+import { Loader2 } from "lucide-react";
 import { PermissionsProvider } from "./contexts/PermissionsContext";
 import { AuthPermissionsWrapper } from "./components/common/AuthPermissionsWrapper";
 import { useAuthStore } from "./stores/authStore";
 import type { User } from "./stores/authStore";
 import { DashboardLayout } from "./components/layout/LayoutPage";
 import Index from "./pages/Index";
-import Dashboard from "./components/user/Dashboard";
-import Diagnostico from "./components/user/Diagnostico";
 import Login from "./pages/Login";
-import AdminDashboard from "./components/admin/AdminDashboard";
 import NotFound from "./pages/NotFound";
-
-// User Pages
-import Questionarios from "./components/common/Questionarios";
-import MeusQuestionarios from "./components/user/MeusQuestionarios";
-import Diagnosticos from "./components/user/Diagnosticos";
-import MeusDiagnosticos from "./components/user/MeusDiagnosticos";
-import PlanosAcaoV2 from "./components/user/PlanosAcaoV2";
-import DetalhesPlanoAcao from "./components/user/DetalhesPlanoAcao";
-// import Gamificacao from "./components/user/Gamificacao";
-import ConquistasUnified from "./components/common/ConquistasUnified";
-import Conquistas from "./components/user/Conquistas";
-import Perfil from "./components/user/Perfil";
-
-// Content Management
-import  ContentManager  from "./components/common/contents/ContentManager";
-import  ContentViewer  from "./components/common/contents/ContentViewer";
-import  ContentEditor  from "./components/common/contents/ContentEditor";
-import  ContentLayout  from "./components/common/contents/ContentLayout";
-
-// Admin Pages
-import GestaoUsuarios from "./components/admin/GestaoUsuarios";
-import RespostasEquipe from "./components/admin/RespostasEquipe";
-import Relatorios from "./components/common/Relatorios";
-import Notificacoes from "./components/common/Notificacoes";
-
-// Master Pages
-import MasterDashboard from "./components/master/MasterDashboard";
-import PerfisPermissoes from "./components/master/PerfisPermissoes";
-import QuestionariosGlobais from "./components/master/QuestionariosGlobais";
-import PlanosConquistasGlobais from "./components/master/PlanosConquistasGlobais";
-import Financeiro from "./components/master/Financeiro";
-import DiagnosticosGlobais from "./components/master/DiagnosticosGlobais";
-import Empresas from "./components/master/Empresas";
-import DiagnosticoInicialEditor from "./components/master/DiagnosticoInicialEditor";
-
-// Common Pages
-import Configuracoes from "./components/common/Configuracoes";
-import ChatPage from "./components/common/chatbot/ChatPage";
 import AgentChatWidget from "./components/common/chatbot/AgentChatWidget";
-import { AccessibilityWidget } from "./components/common/AccessibilityWidget";
 import { VLibrasWidget } from "./components/common/VLibrasWidget";
+
+const Dashboard = lazy(() => import("./components/user/Dashboard"));
+const Diagnostico = lazy(() => import("./components/user/Diagnostico"));
+const Questionarios = lazy(() => import("./components/common/Questionarios"));
+const MeusQuestionarios = lazy(() => import("./components/user/MeusQuestionarios"));
+const Diagnosticos = lazy(() => import("./components/user/Diagnosticos"));
+const MeusDiagnosticos = lazy(() => import("./components/user/MeusDiagnosticos"));
+const PlanosAcaoV2 = lazy(() => import("./components/user/PlanosAcaoV2"));
+const DetalhesPlanoAcao = lazy(() => import("./components/user/DetalhesPlanoAcao"));
+const ConquistasUnified = lazy(() => import("./components/common/ConquistasUnified"));
+const Conquistas = lazy(() => import("./components/user/Conquistas"));
+const Perfil = lazy(() => import("./components/user/Perfil"));
+const ContentManager = lazy(() => import("./components/common/contents/ContentManager"));
+const ContentViewer = lazy(() => import("./components/common/contents/ContentViewer"));
+const ContentEditor = lazy(() => import("./components/common/contents/ContentEditor"));
+const ContentLayout = lazy(() =>
+  import("./components/common/contents/ContentLayout").then((module) => ({
+    default: module.ContentLayout,
+  })),
+);
+const AdminDashboard = lazy(() => import("./components/admin/AdminDashboard"));
+const GestaoUsuarios = lazy(() => import("./components/admin/GestaoUsuarios"));
+const RespostasEquipe = lazy(() => import("./components/admin/RespostasEquipe"));
+const Relatorios = lazy(() => import("./components/common/Relatorios"));
+const Notificacoes = lazy(() => import("./components/common/Notificacoes"));
+const MasterDashboard = lazy(() => import("./components/master/MasterDashboard"));
+const PerfisPermissoes = lazy(() => import("./components/master/PerfisPermissoes"));
+const QuestionariosGlobais = lazy(() => import("./components/master/QuestionariosGlobais"));
+const PlanosConquistasGlobais = lazy(() => import("./components/master/PlanosConquistasGlobais"));
+const Financeiro = lazy(() => import("./components/master/Financeiro"));
+const DiagnosticosGlobais = lazy(() => import("./components/master/DiagnosticosGlobais"));
+const Empresas = lazy(() => import("./components/master/Empresas"));
+const DiagnosticoInicialEditor = lazy(() => import("./components/master/DiagnosticoInicialEditor"));
+const Configuracoes = lazy(() => import("./components/common/Configuracoes"));
+const ChatPage = lazy(() => import("./components/common/chatbot/ChatPage"));
+
+const RouteFallback = () => (
+  <div className="flex min-h-[40vh] items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -214,66 +214,49 @@ const AppWithAuth = () => {
               v7_relativeSplatPath: true,
             }}
           >
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<Index />} />
-              
-              {/* Protected Routes with Sidebar */}
-              <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
-              <Route path="/diagnostico" element={
-                <AuthPermissionsWrapper permission="diagnostico.create" fallback={<Navigate to="/dashboard" />}>
-                  <DashboardLayout><Diagnostico /></DashboardLayout>
-                </AuthPermissionsWrapper>
-              } />
-              {/* Unificado: rota de Conquistas usa página única */}
-              
-              
-              {/* User Routes */}
-              <Route path="/questionarios" element={<DashboardLayout><Questionarios /></DashboardLayout>} />
-              <Route path="/meus-questionarios" element={<DashboardLayout><MeusQuestionarios /></DashboardLayout>} />
-              <Route path="/meus-diagnosticos" element={<DashboardLayout><MeusDiagnosticos /></DashboardLayout>} />
-              <Route path="/diagnosticos" element={<DashboardLayout><Diagnosticos /></DashboardLayout>} />
-              <Route path="/planos-acao" element={<DashboardLayout><PlanosAcaoV2 /></DashboardLayout>} />
-              <Route path="/planos-acao/:id" element={<DashboardLayout><DetalhesPlanoAcao /></DashboardLayout>} />
-              {/* Consolidated: redirect Gamificacao to Conquistas route by rendering unified page */}
-              <Route path="/gamificacao" element={<DashboardLayout><ConquistasUnified /></DashboardLayout>} />
-              <Route path="/relatorios" element={<DashboardLayout><Relatorios /></DashboardLayout>} />
-              <Route path="/notificacoes" element={<DashboardLayout><Notificacoes /></DashboardLayout>} />
-              <Route path="/perfil" element={<DashboardLayout><Perfil /></DashboardLayout>} />
-              <Route path="/configuracoes" element={<DashboardLayout><Configuracoes /></DashboardLayout>} />
-              <Route path="/agente" element={<DashboardLayout><ChatPage /></DashboardLayout>} />
-              
-              {/* Admin Routes */}
-              <Route path="/admin-dashboard" element={<DashboardLayout><AdminDashboard /></DashboardLayout>} />
-              <Route path="/gestao-usuarios" element={<DashboardLayout><GestaoUsuarios /></DashboardLayout>} />
-              <Route path="/gestao-planos" element={<DashboardLayout><div>Gestão de Planos em desenvolvimento</div></DashboardLayout>} />
-              <Route path="/respostas-equipe" element={<DashboardLayout><RespostasEquipe /></DashboardLayout>} />
-              <Route path="/conquistas-empresa" element={<DashboardLayout><ConquistasUnified /></DashboardLayout>} />
-              
-              {/* Master Routes */}
-              <Route path="/master-dashboard" element={<DashboardLayout><MasterDashboard /></DashboardLayout>} />
-              <Route path="/perfis-permissoes" element={<DashboardLayout><PerfisPermissoes /></DashboardLayout>} />
-              <Route path="/empresas" element={<DashboardLayout><Empresas /></DashboardLayout>} />
-              <Route path="/sistema/diagnostico-inicial" element={<DashboardLayout><DiagnosticoInicialEditor /></DashboardLayout>} />
-              <Route path="/questionarios-globais" element={<DashboardLayout><QuestionariosGlobais /></DashboardLayout>} />
-              <Route path="/diagnosticos-globais" element={<DashboardLayout><DiagnosticosGlobais /></DashboardLayout>} />
-              <Route path="/planos-conquistas-globais" element={<DashboardLayout><PlanosConquistasGlobais /></DashboardLayout>} />
-              <Route path="/financeiro" element={<DashboardLayout><Financeiro /></DashboardLayout>} />
-              {/* Usar página antiga de Conquistas conforme solicitado */}
-              <Route path="/conquistas" element={<DashboardLayout><Conquistas /></DashboardLayout>} />
-              
-              {/* Content Management Routes */}
-              <Route path="/conteudos" element={<ContentLayout><ContentManager /></ContentLayout>} />
-              <Route path="/conteudos/novo" element={<ContentLayout><ContentEditor /></ContentLayout>} />
-              <Route path="/conteudos/:id" element={<ContentLayout><ContentViewer /></ContentLayout>} />
-              <Route path="/conteudos/:id/editar" element={<ContentLayout><ContentEditor /></ContentLayout>} />
-              
-              {/* Legacy route */}
-              <Route path="/admin" element={<DashboardLayout><AdminDashboard /></DashboardLayout>} />
-              
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
+                <Route path="/diagnostico" element={
+                  <AuthPermissionsWrapper permission="diagnostico.create" fallback={<Navigate to="/dashboard" />}>
+                    <DashboardLayout><Diagnostico /></DashboardLayout>
+                  </AuthPermissionsWrapper>
+                } />
+                <Route path="/questionarios" element={<DashboardLayout><Questionarios /></DashboardLayout>} />
+                <Route path="/meus-questionarios" element={<DashboardLayout><MeusQuestionarios /></DashboardLayout>} />
+                <Route path="/meus-diagnosticos" element={<DashboardLayout><MeusDiagnosticos /></DashboardLayout>} />
+                <Route path="/diagnosticos" element={<DashboardLayout><Diagnosticos /></DashboardLayout>} />
+                <Route path="/planos-acao" element={<DashboardLayout><PlanosAcaoV2 /></DashboardLayout>} />
+                <Route path="/planos-acao/:id" element={<DashboardLayout><DetalhesPlanoAcao /></DashboardLayout>} />
+                <Route path="/gamificacao" element={<DashboardLayout><ConquistasUnified /></DashboardLayout>} />
+                <Route path="/relatorios" element={<DashboardLayout><Relatorios /></DashboardLayout>} />
+                <Route path="/notificacoes" element={<DashboardLayout><Notificacoes /></DashboardLayout>} />
+                <Route path="/perfil" element={<DashboardLayout><Perfil /></DashboardLayout>} />
+                <Route path="/configuracoes" element={<DashboardLayout><Configuracoes /></DashboardLayout>} />
+                <Route path="/agente" element={<DashboardLayout><ChatPage /></DashboardLayout>} />
+                <Route path="/admin-dashboard" element={<DashboardLayout><AdminDashboard /></DashboardLayout>} />
+                <Route path="/gestao-usuarios" element={<DashboardLayout><GestaoUsuarios /></DashboardLayout>} />
+                <Route path="/gestao-planos" element={<DashboardLayout><div>Gestão de Planos em desenvolvimento</div></DashboardLayout>} />
+                <Route path="/respostas-equipe" element={<DashboardLayout><RespostasEquipe /></DashboardLayout>} />
+                <Route path="/conquistas-empresa" element={<DashboardLayout><ConquistasUnified /></DashboardLayout>} />
+                <Route path="/master-dashboard" element={<DashboardLayout><MasterDashboard /></DashboardLayout>} />
+                <Route path="/perfis-permissoes" element={<DashboardLayout><PerfisPermissoes /></DashboardLayout>} />
+                <Route path="/empresas" element={<DashboardLayout><Empresas /></DashboardLayout>} />
+                <Route path="/sistema/diagnostico-inicial" element={<DashboardLayout><DiagnosticoInicialEditor /></DashboardLayout>} />
+                <Route path="/questionarios-globais" element={<DashboardLayout><QuestionariosGlobais /></DashboardLayout>} />
+                <Route path="/diagnosticos-globais" element={<DashboardLayout><DiagnosticosGlobais /></DashboardLayout>} />
+                <Route path="/planos-conquistas-globais" element={<DashboardLayout><PlanosConquistasGlobais /></DashboardLayout>} />
+                <Route path="/financeiro" element={<DashboardLayout><Financeiro /></DashboardLayout>} />
+                <Route path="/conquistas" element={<DashboardLayout><Conquistas /></DashboardLayout>} />
+                <Route path="/conteudos" element={<ContentLayout><ContentManager /></ContentLayout>} />
+                <Route path="/conteudos/novo" element={<ContentLayout><ContentEditor /></ContentLayout>} />
+                <Route path="/conteudos/:id" element={<ContentLayout><ContentViewer /></ContentLayout>} />
+                <Route path="/conteudos/:id/editar" element={<ContentLayout><ContentEditor /></ContentLayout>} />
+                <Route path="/admin" element={<DashboardLayout><AdminDashboard /></DashboardLayout>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
             {(() => {
               const WidgetGate = () => {
                 const location = useLocation();

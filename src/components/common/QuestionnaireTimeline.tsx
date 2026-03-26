@@ -9,7 +9,8 @@ import {
   Play, 
   Eye, 
   Edit,
-  Calendar
+  Calendar,
+  Trash2
 } from 'lucide-react';
 
 interface Questionnaire {
@@ -34,6 +35,7 @@ interface QuestionnaireTimelineProps {
   onToggleActive: (questionnaire: Questionnaire) => void;
   canEdit: boolean;
   canDelete: boolean;
+  canManageQuestionnaire?: (questionnaire: Questionnaire) => boolean;
 }
 
 const getQuestionnaireIcon = (type: string) => {
@@ -81,7 +83,8 @@ export default function QuestionnaireTimeline({
   onDelete, 
   onToggleActive,
   canEdit, 
-  canDelete 
+  canDelete,
+  canManageQuestionnaire,
 }: QuestionnaireTimelineProps) {
   // Agrupar questionários por data
   const groupedByDate = questionnaires.reduce((acc, questionnaire) => {
@@ -131,7 +134,12 @@ export default function QuestionnaireTimeline({
 
                 {/* Questionários do dia */}
                 <div className="ml-8 space-y-4">
-                  {questionnaires.map((questionnaire, index) => (
+                  {questionnaires.map((questionnaire) => {
+                    const canManage = canManageQuestionnaire
+                      ? canManageQuestionnaire(questionnaire)
+                      : true;
+
+                    return (
                     <Card key={questionnaire.id} className="relative overflow-hidden border-0 shadow-md hover:shadow-lg transition-all duration-300 group">
                       {/* Conector temporal */}
                       <div className="absolute -left-8 top-6 w-4 h-4 bg-primary rounded-full border-4 border-white shadow-md"></div>
@@ -156,8 +164,8 @@ export default function QuestionnaireTimeline({
                                 <Badge 
                                   variant={questionnaire.is_active ? "default" : "secondary"}
                                   className={`cursor-pointer ${questionnaire.is_active ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 hover:bg-gray-600"}`}
-                                  onClick={() => canEdit && onToggleActive(questionnaire)}
-                                  title={canEdit ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
+                                  onClick={() => canEdit && canManage && onToggleActive(questionnaire)}
+                                  title={canEdit && canManage ? (questionnaire.is_active ? "Clique para desativar" : "Clique para ativar") : undefined}
                                 >
                                   {questionnaire.is_active ? "Ativo" : "Inativo"}
                                 </Badge>
@@ -203,7 +211,7 @@ export default function QuestionnaireTimeline({
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
-                            {canEdit && (
+                            {canEdit && canManage && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -213,7 +221,7 @@ export default function QuestionnaireTimeline({
                                 <Edit className="w-4 h-4" />
                               </Button>
                             )}
-                            {canDelete && (
+                            {canDelete && canManage && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -227,7 +235,8 @@ export default function QuestionnaireTimeline({
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -236,4 +245,3 @@ export default function QuestionnaireTimeline({
     </div>
   );
 }
-

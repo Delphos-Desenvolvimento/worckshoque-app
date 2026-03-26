@@ -161,6 +161,8 @@ const DetalhesPlanoAcao = () => {
   const [userSearchTerm, setUserSearchTerm] = useState("");
   const [users, setUsers] = useState<{id: string, name: string, email: string, role: string}[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [newTaskDescription, setNewTaskDescription] = useState('');
   
   // Adicionando log para rastrear renderizações
   console.log('🔍 DetalhesPlanoAcao renderizado com ID:', id);
@@ -547,6 +549,58 @@ const DetalhesPlanoAcao = () => {
     }
   };
 
+  const handleAddTask = async () => {
+    if (!plano) return;
+
+    const description = newTaskDescription.trim();
+    if (!description) {
+      toast.error('Informe a descrição da tarefa.');
+      return;
+    }
+
+    const tarefaTemporaria: Tarefa = {
+      id: `new-${Date.now()}`,
+      descricao: description,
+      concluida: false,
+    };
+
+    const tarefasAtualizadas = [...plano.tarefas, tarefaTemporaria];
+    const tarefasConcluidas = tarefasAtualizadas.filter((t) => t.concluida).length;
+    const novoProgresso = Math.round((tarefasConcluidas / tarefasAtualizadas.length) * 100);
+
+    try {
+      setPlano((prev) =>
+        prev
+          ? { ...prev, tarefas: tarefasAtualizadas, progresso: novoProgresso }
+          : prev,
+      );
+
+      const goalsPayload: GoalDto[] = tarefasAtualizadas.map((t) => ({
+        id: t.id.startsWith('new-') || t.id.includes('-g') ? undefined : t.id,
+        title: t.descricao,
+        description: t.descricao,
+        status: t.concluida ? 'concluida' : 'pendente',
+        progress: t.concluida ? 100 : 0,
+      }));
+
+      await updateActionPlan(plano.id, {
+        goals: goalsPayload,
+        progress: novoProgresso,
+      });
+
+      const dtoAtualizado = await getActionPlan(plano.id);
+      const planoAtualizado = mapDtoToPlanoUI(dtoAtualizado);
+      setPlano(planoAtualizado);
+      setNewTaskDescription('');
+      setIsTaskModalOpen(false);
+      toast.success('Tarefa adicionada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao adicionar tarefa:', error);
+      toast.error('Não foi possível adicionar a tarefa. Tente novamente.');
+      setPlano((prev) => prev ? { ...prev, tarefas: plano.tarefas, progresso: plano.progresso } : prev);
+    }
+  };
+
 
   if (!plano) {
     return (
@@ -608,7 +662,7 @@ const DetalhesPlanoAcao = () => {
     {
       label: 'Nova Tarefa',
       icon: PlusCircle,
-      onClick: () => toast.info('Funcionalidade de adicionar tarefa em breve!'),
+      onClick: () => setIsTaskModalOpen(true),
       variant: 'primary' as const
     },
     {
@@ -852,7 +906,7 @@ const DetalhesPlanoAcao = () => {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Tarefas</CardTitle>
-                <Button size="sm">
+                <Button size="sm" onClick={() => setIsTaskModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Adicionar Tarefa
                 </Button>
@@ -909,7 +963,7 @@ const DetalhesPlanoAcao = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Adicione tarefas para acompanhar o progresso deste plano.
                   </p>
-                  <Button onClick={() => {}}>
+                  <Button onClick={() => setIsTaskModalOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
                     Adicionar Tarefa
                   </Button>
@@ -1087,6 +1141,51 @@ const DetalhesPlanoAcao = () => {
               )}
             </ScrollArea>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Adicionar Tarefa</DialogTitle>
+            <DialogDescription>
+              Crie uma nova tarefa para este plano de ação.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Descrição da tarefa</div>
+              <Input
+                value={newTaskDescription}
+                onChange={(e) => setNewTaskDescription(e.target.value)}
+                placeholder="Descreva a tarefa que precisa ser executada..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleAddTask();
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsTaskModalOpen(false);
+                setNewTaskDescription('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={() => void handleAddTask()}>
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar Tarefa
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
