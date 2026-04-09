@@ -1,20 +1,34 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
 import WorkChoqueLogo from '@/assets/workchoque-logo';
 import { 
-  Facebook, 
-  Twitter, 
-  Linkedin, 
-  Instagram, 
   Mail, 
   Phone, 
   MapPin,
   ArrowRight
 } from 'lucide-react';
+import { toast } from 'sonner';
+import LoginModal from '@/components/login/LoginModal';
 
 const Footer = () => {
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  const handleNewsletterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = newsletterEmail.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Informe um e-mail válido para se inscrever.');
+      return;
+    }
+
+    const mailtoUrl = `mailto:contato@workchoque.com?subject=${encodeURIComponent('Inscrição na newsletter WorkChoque')}&body=${encodeURIComponent(`Olá, gostaria de receber as atualizações no e-mail: ${email}`)}`;
+    window.location.href = mailtoUrl;
+    toast.success('Abrimos seu app de e-mail para concluir a inscrição.');
+    setNewsletterEmail('');
+  };
+
   return (
-    <footer className="bg-gray-900 text-white">
+    <footer id="footer-contact" className="bg-gray-900 text-white">
       {/* Main Footer Content */}
       <div className="container mx-auto px-4 py-8 md:py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
@@ -27,18 +41,10 @@ const Footer = () => {
               Descubra problemas, receba planos de ação personalizados e acompanhe 
               o progresso da sua equipe em tempo real.
             </p>
-            <div className="flex space-x-4">
-              <a href="#" className="text-gray-400 hover:text-accent transition-colors">
-                <Facebook className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-accent transition-colors">
-                <Twitter className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-accent transition-colors">
-                <Linkedin className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-accent transition-colors">
-                <Instagram className="h-5 w-5" />
+            <div className="text-sm text-gray-300">
+              Fale com nosso time:
+              <a href="mailto:contato@workchoque.com" className="ml-2 text-accent hover:underline">
+                contato@workchoque.com
               </a>
             </div>
           </div>
@@ -48,29 +54,33 @@ const Footer = () => {
             <h3 className="text-lg font-semibold">Links Rápidos</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/" className="text-gray-300 hover:text-accent transition-colors text-sm">
+                <a href="/" className="text-gray-300 hover:text-accent transition-colors text-sm">
                   Início
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/sobre" className="text-gray-300 hover:text-accent transition-colors text-sm">
+                <a href="/#features" className="text-gray-300 hover:text-accent transition-colors text-sm">
                   Sobre Nós
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/diagnostico" className="text-gray-300 hover:text-accent transition-colors text-sm">
+                <a href="/?openDiagnostic=1" className="text-gray-300 hover:text-accent transition-colors text-sm">
                   Diagnóstico
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/contato" className="text-gray-300 hover:text-accent transition-colors text-sm">
+                <a href="/#footer-contact" className="text-gray-300 hover:text-accent transition-colors text-sm">
                   Contato
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/login" className="text-gray-300 hover:text-accent transition-colors text-sm">
+                <button
+                  type="button"
+                  onClick={() => setShowLoginModal(true)}
+                  className="text-gray-300 hover:text-accent transition-colors text-sm"
+                >
                   Login
-                </Link>
+                </button>
               </li>
             </ul>
           </div>
@@ -80,25 +90,9 @@ const Footer = () => {
             <h3 className="text-lg font-semibold">Serviços</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/diagnostico" className="text-gray-300 hover:text-accent transition-colors text-sm">
+                <a href="/?openDiagnostic=1" className="text-gray-300 hover:text-accent transition-colors text-sm">
                   Diagnóstico de Burnout
-                </Link>
-              </li>
-              <li>
-                <Link to="/planos" className="text-gray-300 hover:text-accent transition-colors text-sm">
-                  Planos de Ação
-                </Link>
-              </li>
-              <li>
-                <Link to="/relatorios" className="text-gray-300 hover:text-accent transition-colors text-sm">
-                  Relatórios
-                </Link>
-              </li>
-              {/* Unificado em Conquistas */}
-              <li>
-                <Link to="/conquistas" className="text-gray-300 hover:text-accent transition-colors text-sm">
-                  Conquistas
-                </Link>
+                </a>
               </li>
             </ul>
           </div>
@@ -137,17 +131,19 @@ const Footer = () => {
                 Fique por dentro das novidades e dicas para melhorar seu ambiente de trabalho.
               </p>
             </div>
-            <div className="flex w-full md:w-auto">
+            <form className="flex w-full md:w-auto" onSubmit={handleNewsletterSubmit}>
               <input
                 type="email"
                 placeholder="Seu e-mail"
+                value={newsletterEmail}
+                onChange={(event) => setNewsletterEmail(event.target.value)}
                 className="flex-1 md:w-80 px-4 py-2 bg-gray-800 border border-gray-700 rounded-l-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
               />
-              <button className="px-6 py-2 bg-accent hover:bg-accent/90 text-primary font-semibold rounded-r-md transition-colors flex items-center">
+              <button type="submit" className="px-6 py-2 bg-accent hover:bg-accent/90 text-primary font-semibold rounded-r-md transition-colors flex items-center">
                 Inscrever
                 <ArrowRight className="ml-2 h-4 w-4" />
               </button>
-            </div>
+            </form>
           </div>
         </div>
       </div>
@@ -160,19 +156,20 @@ const Footer = () => {
               © 2024 WorkChoque. Todos os direitos reservados.
             </div>
             <div className="flex space-x-6">
-              <Link to="/privacidade" className="text-gray-400 hover:text-accent transition-colors text-sm">
-                Política de Privacidade
-              </Link>
-              <Link to="/termos" className="text-gray-400 hover:text-accent transition-colors text-sm">
-                Termos de Uso
-              </Link>
-              <Link to="/cookies" className="text-gray-400 hover:text-accent transition-colors text-sm">
-                Cookies
-              </Link>
+              <a href="mailto:contato@workchoque.com" className="text-gray-400 hover:text-accent transition-colors text-sm">
+                Suporte por E-mail
+              </a>
+              <a href="tel:+5511999999999" className="text-gray-400 hover:text-accent transition-colors text-sm">
+                Ligar para Suporte
+              </a>
             </div>
           </div>
         </div>
       </div>
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
     </footer>
   );
 };

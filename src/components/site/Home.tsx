@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/site/Footer';
 import ModalLayout from '@/components/common/ModalLayout';
@@ -23,6 +23,20 @@ const Home: React.FC = () => {
   const homepageDiagnostic = useHomepageDiagnosticConfig({
     mode: isPreviewMode ? 'preview' : 'saved',
   });
+  const openDiagnosticFromQuery = useMemo(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('openDiagnostic') === '1';
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (openDiagnosticFromQuery) {
+      setIsDiagnosticoModalOpen(true);
+    }
+  }, [openDiagnosticFromQuery]);
 
   const handleDiagnosticoClick = () => {
     setIsDiagnosticoModalOpen(true);

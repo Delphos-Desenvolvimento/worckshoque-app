@@ -74,7 +74,8 @@ export default function NotificationCenter({ className = "" }: NotificationCente
       auth: {
         token: token,
       },
-      transports: ['websocket', 'polling'],
+      transports: ['polling'],
+      upgrade: false,
     });
 
     socket.on('connect', () => {

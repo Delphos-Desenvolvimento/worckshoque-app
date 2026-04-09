@@ -12,7 +12,6 @@ import { useAuthStore } from "./stores/authStore";
 import type { User } from "./stores/authStore";
 import { DashboardLayout } from "./components/layout/LayoutPage";
 import Index from "./pages/Index";
-import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import AgentChatWidget from "./components/common/chatbot/AgentChatWidget";
 import { VLibrasWidget } from "./components/common/VLibrasWidget";
